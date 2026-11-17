@@ -1,0 +1,1411 @@
+# CascoQR
+## Documento de especificación de requisitos de software (SRS)
+
+**Versión:** 1.0  
+**Fecha:** 17 de noviembre de 2026  
+**Producto:** Sistema de administración de etiquetas QR para cascos de motocicleta  
+**Tipo de documento:** Especificación funcional y técnica  
+**Estado:** Base para desarrollo
+
+---
+
+# 1. Descripción general del proyecto
+
+## 1.1. Nombre del sistema
+
+CascoQR.
+
+## 1.2. Objetivo
+
+Desarrollar una aplicación web que permita administrar propietarios de cascos de motocicleta, asociarles una etiqueta física personalizada con un código QR y proporcionar una ficha pública consultable mediante el escaneo de dicho código.
+
+El sistema permitirá que un administrador registre propietarios, gestione su información y documentación, seleccione diseños de etiquetas, personalice la posición y dimensiones del código QR y consulte la ficha pública asociada a cada etiqueta.
+
+Cada propietario tendrá una única etiqueta QR activa y una ficha pública individual.
+
+## 1.3. Problema que resuelve
+
+El sistema busca centralizar la información de los propietarios de cascos y facilitar su consulta mediante un código QR colocado en una etiqueta física.
+
+La persona que escanee el código QR podrá acceder a una página pública con la información autorizada por el administrador.
+
+La aplicación también permitirá personalizar visualmente las etiquetas mediante plantillas previamente cargadas.
+
+## 1.4. Alcance general
+
+CascoQR será una aplicación web con dos contextos de uso:
+
+- **Administración:** gestión de propietarios, documentos, plantillas y etiquetas.
+- **Consulta pública:** visualización de la información autorizada de un propietario mediante su código QR.
+
+La aplicación tendrá un único tipo de usuario administrativo. Los propietarios no tendrán cuentas, contraseñas ni acceso al panel administrativo.
+
+---
+
+# 2. Alcance funcional
+
+La aplicación estará compuesta exclusivamente por cuatro módulos:
+
+1. Propietarios.
+2. Plantillas.
+3. Editor de etiquetas QR.
+4. Ficha pública.
+
+No se contempla un dashboard ni módulos administrativos adicionales.
+
+## 2.1. Matriz de funcionalidades
+
+| Módulo | Funcionalidad |
+|---|---|
+| Propietarios | Registrar propietarios |
+| Propietarios | Consultar listado |
+| Propietarios | Buscar propietarios |
+| Propietarios | Editar información |
+| Propietarios | Activar y desactivar |
+| Propietarios | Administrar documentos |
+| Propietarios | Crear etiqueta durante el registro |
+| Plantillas | Cargar imágenes |
+| Plantillas | Visualizar plantillas |
+| Plantillas | Eliminar plantillas no utilizadas |
+| Editor QR | Seleccionar propietario |
+| Editor QR | Seleccionar plantilla |
+| Editor QR | Mover código QR |
+| Editor QR | Redimensionar código QR |
+| Editor QR | Guardar configuración |
+| Editor QR | Generar imagen de etiqueta |
+| Ficha pública | Consultar mediante token |
+| Ficha pública | Mostrar información autorizada |
+| Ficha pública | Mostrar documentos públicos |
+
+---
+
+# 3. Roles y permisos
+
+## 3.1. Administrador
+
+El sistema tendrá un único rol administrativo.
+
+El administrador podrá:
+
+- Acceder al panel de administración.
+- Registrar, consultar y editar propietarios.
+- Activar y desactivar propietarios.
+- Cargar, visualizar y eliminar documentos.
+- Definir qué documentos pueden mostrarse públicamente.
+- Administrar plantillas.
+- Crear etiquetas QR.
+- Modificar etiquetas existentes.
+- Consultar las fichas públicas.
+
+No se contempla la administración de múltiples usuarios administrativos.
+
+## 3.2. Propietario
+
+El propietario no tendrá acceso al sistema administrativo.
+
+No contará con:
+
+- Usuario.
+- Contraseña.
+- Inicio de sesión.
+- Panel personal.
+- Funciones de edición.
+
+Su información será administrada exclusivamente por el administrador.
+
+## 3.3. Visitante público
+
+Es cualquier persona que acceda a una ficha mediante un código QR válido.
+
+Podrá consultar únicamente la información definida como pública.
+
+No podrá modificar información ni acceder a otras fichas mediante un listado de propietarios.
+
+---
+
+# 4. Módulo de propietarios
+
+## 4.1. Objetivo
+
+Administrar los registros de las personas propietarias de los cascos y su información asociada.
+
+## 4.2. Registro de propietario
+
+El formulario deberá solicitar los siguientes datos:
+
+| Campo | Tipo | Obligatorio | Validación |
+|---|---|---|---|
+| ID | UUID | Sí, automático | Único |
+| Nombre(s) | VARCHAR(100) | Sí | Máximo 100 caracteres |
+| Apellidos | VARCHAR(100) | Sí | Máximo 100 caracteres |
+| Correo electrónico | VARCHAR(150) | No | Formato válido |
+| Teléfono | VARCHAR(30) | No | Formato permitido |
+| Estado | BOOLEAN | Automático | Activo por defecto |
+| Token | VARCHAR(64) o equivalente | Automático | Único e impredecible |
+| Fecha de creación | TIMESTAMP | Automático | Fecha del servidor |
+| Fecha de actualización | TIMESTAMP | Automático | Fecha del servidor |
+
+La aplicación deberá generar automáticamente un identificador interno y un token de acceso público.
+
+## 4.3. Creación de etiqueta durante el registro
+
+La etiqueta QR deberá poder crearse desde el mismo proceso de registro del propietario.
+
+Flujo esperado:
+
+1. El administrador selecciona Nuevo propietario.
+2. Captura los datos personales.
+3. Agrega documentos, si corresponde.
+4. Selecciona una plantilla de etiqueta.
+5. El sistema genera el código QR asociado al propietario.
+6. El administrador visualiza la etiqueta en tiempo real.
+7. Puede mover el QR sobre la plantilla.
+8. Puede modificar sus dimensiones.
+9. Guarda el propietario y su etiqueta.
+
+**Regla:** no deberá ser necesario guardar primero al propietario y cambiar de módulo para crear su primera etiqueta.
+
+El registro del propietario y su etiqueta deberán guardarse como una operación lógica consistente. Si falla la creación de la etiqueta, no deberá quedar un propietario registrado como si el proceso completo hubiera terminado correctamente.
+
+## 4.4. Listado de propietarios
+
+La pantalla deberá mostrar:
+
+- Nombre completo.
+- Correo electrónico.
+- Teléfono.
+- Cantidad de documentos.
+- Estado.
+- Estado de asignación de etiqueta.
+- Acciones disponibles.
+
+Acciones:
+
+- Ver ficha QR.
+- Editar.
+- Activar o desactivar.
+
+## 4.5. Búsqueda
+
+El administrador podrá buscar registros utilizando:
+
+- Nombre.
+- Apellidos.
+- Correo electrónico.
+- Teléfono.
+
+La búsqueda deberá actualizar los resultados sin necesidad de abandonar la pantalla.
+
+## 4.6. Edición
+
+El administrador podrá modificar:
+
+- Nombre(s).
+- Apellidos.
+- Correo electrónico.
+- Teléfono.
+- Documentos asociados.
+- Visibilidad pública de los documentos.
+
+La actualización de los datos personales no deberá modificar el token QR existente.
+
+La edición de la etiqueta se realizará desde el módulo independiente Editor de etiquetas QR.
+
+## 4.7. Activación y desactivación
+
+Cada propietario tendrá un estado:
+
+- Activo.
+- Inactivo.
+
+Cuando se desactive un propietario:
+
+- Su ficha pública dejará de estar disponible.
+- El token anterior deberá quedar revocado.
+- El código QR anterior no deberá permitir consultar la información.
+
+Cuando se reactive:
+
+- Se deberá generar un token nuevo.
+- La etiqueta deberá utilizar el nuevo token.
+- El token anterior no deberá volver a ser válido.
+
+La reactivación no deberá recuperar el token revocado.
+
+## 4.8. Documentos del propietario
+
+Cada propietario podrá tener un máximo de cinco documentos.
+
+Formatos permitidos:
+
+- JPG.
+- JPEG.
+- PNG.
+
+Cada documento deberá almacenar:
+
+- Identificador.
+- Propietario asociado.
+- Nombre original.
+- Ruta o referencia de almacenamiento.
+- Tipo MIME.
+- Tamaño.
+- Estado de visibilidad pública.
+- Fecha de carga.
+
+Cada documento tendrá una propiedad de visibilidad:
+
+- Público.
+- Privado.
+
+Un documento privado nunca deberá mostrarse en la ficha pública.
+
+El administrador podrá:
+
+- Cargar documentos.
+- Visualizar documentos.
+- Eliminar documentos.
+- Marcar documentos como públicos.
+- Marcar documentos como privados.
+
+La aplicación deberá validar el máximo de cinco documentos tanto en frontend como en backend.
+
+---
+
+# 5. Módulo de plantillas
+
+## 5.1. Objetivo
+
+Administrar los diseños visuales que servirán como base para crear las etiquetas físicas de los cascos de motocicleta.
+
+## 5.2. Características de las plantillas
+
+Las plantillas serán imágenes estáticas.
+
+Formatos permitidos:
+
+- JPG.
+- JPEG.
+- PNG.
+
+Cada plantilla deberá almacenar:
+
+| Campo | Tipo |
+|---|---|
+| ID | UUID |
+| Nombre | VARCHAR |
+| Nombre original | VARCHAR |
+| Ruta de almacenamiento | VARCHAR |
+| Tipo MIME | VARCHAR |
+| Ancho original | INTEGER |
+| Alto original | INTEGER |
+| Fecha de creación | TIMESTAMP |
+
+## 5.3. Funcionalidades
+
+El administrador podrá:
+
+- Cargar una plantilla.
+- Visualizar una plantilla.
+- Consultar las plantillas disponibles.
+- Eliminar una plantilla cuando no esté siendo utilizada.
+
+## 5.4. Restricción de eliminación
+
+No se deberá permitir eliminar una plantilla que esté asociada a una etiqueta existente.
+
+Antes de eliminarla, el sistema deberá comprobar si existen etiquetas que la estén utilizando.
+
+## 5.5. Consideraciones visuales
+
+Las imágenes deberán conservar sus proporciones originales.
+
+El sistema no deberá deformar una plantilla al mostrarla o generar la imagen final.
+
+La plantilla será la base gráfica de la etiqueta y no será editable internamente.
+
+---
+
+# 6. Módulo de editor de etiquetas QR
+
+## 6.1. Objetivo
+
+Permitir personalizar la ubicación y dimensiones del código QR sobre una plantilla de etiqueta.
+
+Cada propietario tendrá una sola etiqueta activa y una configuración independiente.
+
+## 6.2. Elementos editables
+
+El único elemento editable dentro del diseño será el código QR.
+
+El administrador podrá:
+
+- Mover el código QR.
+- Redimensionar el código QR.
+- Seleccionar otra plantilla.
+- Guardar la configuración.
+
+No se permitirá agregar textos, logotipos, imágenes adicionales, formas u otros elementos gráficos desde el editor.
+
+## 6.3. Flujo de edición posterior
+
+1. El administrador ingresa al Editor de etiquetas QR.
+2. Selecciona un propietario.
+3. El sistema recupera su etiqueta existente.
+4. Se muestra la plantilla asociada.
+5. Se muestra el QR en su posición guardada.
+6. El administrador mueve o redimensiona el QR.
+7. Puede seleccionar otra plantilla.
+8. Guarda los cambios.
+
+La edición posterior no deberá generar un propietario nuevo ni modificar su información personal.
+
+## 6.4. Posicionamiento
+
+La posición y dimensiones deberán almacenarse en valores relativos a la plantilla.
+
+Se recomienda utilizar porcentajes:
+
+| Propiedad | Descripción |
+|---|---|
+| X | Posición horizontal |
+| Y | Posición vertical |
+| Width | Ancho del QR |
+| Height | Alto del QR |
+
+Ejemplo:
+
+```json
+{
+  "x": 65,
+  "y": 20,
+  "width": 20,
+  "height": 32
+}
+```
+
+Estos valores representan porcentajes del área de la plantilla.
+
+No deberán guardarse únicamente coordenadas absolutas en píxeles, ya que la etiqueta podría visualizarse en diferentes resoluciones.
+
+## 6.5. Comportamiento del editor
+
+El movimiento deberá ser fluido.
+
+La implementación deberá:
+
+- Actualizar la posición del elemento directamente durante el arrastre.
+- Evitar reconstruir todo el componente en cada movimiento.
+- Evitar volver a solicitar la imagen del QR continuamente.
+- Mantener sincronizados los controles numéricos.
+- Respetar los límites de la plantilla.
+- Evitar que el código QR salga del área de trabajo.
+- Permitir interacción mediante mouse y dispositivos táctiles.
+
+El editor deberá actualizar su vista previa inmediatamente, sin necesidad de cambiar de pantalla.
+
+## 6.6. Generación de imagen
+
+El resultado del editor deberá poder generarse como una imagen final de la etiqueta.
+
+La imagen deberá contener:
+
+1. La plantilla seleccionada.
+2. El código QR.
+3. La posición y dimensiones configuradas.
+
+El resultado deberá conservar la resolución y proporciones apropiadas para su uso como etiqueta física.
+
+La generación de imagen no deberá alterar la plantilla original.
+
+## 6.7. Persistencia
+
+La configuración de cada etiqueta deberá almacenarse independientemente.
+
+Cambiar la etiqueta de un propietario no deberá modificar las etiquetas de otros propietarios.
+
+---
+
+# 7. Módulo de ficha pública
+
+## 7.1. Objetivo
+
+Proporcionar una página pública individual para cada propietario, accesible mediante el escaneo de su código QR.
+
+## 7.2. Acceso
+
+Cada propietario tendrá un token único e impredecible.
+
+La URL pública tendrá una estructura similar a:
+
+```text
+https://dominio.com/ficha/TOKEN
+```
+
+También se puede utilizar una ruta con parámetro:
+
+```text
+https://dominio.com/?ficha=TOKEN
+```
+
+La ruta definitiva deberá establecerse durante la implementación.
+
+El código QR deberá contener la URL pública correspondiente.
+
+## 7.3. Información mostrada
+
+La ficha pública podrá mostrar:
+
+- Nombre completo.
+- Correo electrónico.
+- Teléfono.
+- Documentos marcados como públicos.
+
+La etiqueta asociada podrá mostrarse como parte de la presentación de la ficha.
+
+## 7.4. Documentos públicos
+
+La ficha deberá consultar únicamente los documentos autorizados para publicación.
+
+No deberá existir ninguna forma de acceder a documentos privados mediante la ficha pública.
+
+Los documentos públicos podrán visualizarse individualmente.
+
+## 7.5. Validación de acceso
+
+Cuando alguien consulte una ficha, el backend deberá validar:
+
+1. Que el token exista.
+2. Que el token corresponda a un propietario.
+3. Que el propietario esté activo.
+4. Que el token no haya sido revocado.
+5. Que la etiqueta correspondiente exista.
+
+Si alguna validación falla, la aplicación deberá mostrar una respuesta de ficha no disponible.
+
+No deberá revelar si el propietario existe, está desactivado o si el token fue revocado.
+
+## 7.6. Restricciones
+
+La ficha pública:
+
+- No tendrá inicio de sesión.
+- No permitirá editar información.
+- No mostrará un directorio de propietarios.
+- No mostrará documentos privados.
+- No permitirá acceder al panel administrativo.
+- No deberá revelar identificadores internos ni datos técnicos innecesarios.
+
+---
+
+# 8. Reglas de negocio
+
+Las siguientes reglas son obligatorias para la implementación.
+
+| ID | Regla |
+|---|---|
+| RN-001 | Cada propietario tendrá un identificador único. |
+| RN-002 | Cada propietario tendrá un único token público vigente. |
+| RN-003 | Cada propietario tendrá una sola etiqueta activa. |
+| RN-004 | La etiqueta estará asociada a un propietario y una plantilla. |
+| RN-005 | Cada propietario podrá almacenar hasta cinco documentos. |
+| RN-006 | Los documentos permitidos serán JPG, JPEG y PNG. |
+| RN-007 | Cada documento tendrá su propia configuración de visibilidad. |
+| RN-008 | Los documentos privados nunca se mostrarán públicamente. |
+| RN-009 | Un propietario inactivo no podrá consultar su ficha pública. |
+| RN-010 | La desactivación deberá revocar el token anterior. |
+| RN-011 | La reactivación deberá generar un token nuevo. |
+| RN-012 | Editar datos personales no deberá cambiar el token. |
+| RN-013 | No se podrá eliminar una plantilla utilizada por una etiqueta. |
+| RN-014 | El editor únicamente permitirá mover y redimensionar el QR. |
+| RN-015 | La posición y dimensiones se almacenarán relativamente a la plantilla. |
+| RN-016 | La etiqueta deberá poder generarse como imagen. |
+| RN-017 | El alta del propietario y la etiqueta inicial deberán ser consistentes. |
+| RN-018 | La ficha pública mostrará únicamente información autorizada. |
+| RN-019 | Los propietarios no tendrán cuentas de acceso. |
+| RN-020 | Solo existirá un rol administrativo. |
+
+---
+
+# 9. Modelo de datos propuesto
+
+Se recomienda utilizar una base de datos relacional, por ejemplo PostgreSQL o MySQL.
+
+El modelo deberá permitir mantener relaciones entre propietarios, documentos, plantillas y etiquetas.
+
+## 9.1. Tabla: administrators
+
+Representa al único administrador del sistema.
+
+| Campo | Tipo sugerido | Descripción |
+|---|---|---|
+| id | UUID | Identificador |
+| username | VARCHAR(100) | Usuario administrativo |
+| password_hash | VARCHAR(255) | Contraseña cifrada mediante hash seguro |
+| created_at | TIMESTAMP | Fecha de creación |
+| updated_at | TIMESTAMP | Fecha de actualización |
+
+No se requiere administración de múltiples roles o usuarios administrativos.
+
+## 9.2. Tabla: owners
+
+| Campo | Tipo sugerido | Descripción |
+|---|---|---|
+| id | UUID | Identificador |
+| first_name | VARCHAR(100) | Nombre(s) |
+| last_name | VARCHAR(100) | Apellidos |
+| email | VARCHAR(150) | Correo |
+| phone | VARCHAR(30) | Teléfono |
+| status | BOOLEAN | Estado |
+| public_token_hash | VARCHAR(255) | Hash del token público |
+| token_version | INTEGER | Versión del token |
+| created_at | TIMESTAMP | Creación |
+| updated_at | TIMESTAMP | Actualización |
+
+**Nota de seguridad:** el token original se genera criptográficamente y se utiliza para construir el QR. Para su validación se recomienda almacenar un hash del token y no el valor original en texto plano.
+
+## 9.3. Tabla: owner_documents
+
+| Campo | Tipo sugerido | Descripción |
+|---|---|---|
+| id | UUID | Identificador |
+| owner_id | UUID | Propietario |
+| original_name | VARCHAR(255) | Nombre original |
+| storage_path | VARCHAR(500) | Ubicación del archivo |
+| mime_type | VARCHAR(100) | Tipo MIME |
+| file_size | BIGINT | Tamaño |
+| is_public | BOOLEAN | Visibilidad |
+| created_at | TIMESTAMP | Fecha de carga |
+
+Relación:
+
+```text
+owners 1 ───── N owner_documents
+```
+
+## 9.4. Tabla: templates
+
+| Campo | Tipo sugerido | Descripción |
+|---|---|---|
+| id | UUID | Identificador |
+| name | VARCHAR(255) | Nombre |
+| storage_path | VARCHAR(500) | Ubicación |
+| mime_type | VARCHAR(100) | Formato |
+| width | INTEGER | Ancho original |
+| height | INTEGER | Alto original |
+| created_at | TIMESTAMP | Fecha de carga |
+
+## 9.5. Tabla: labels
+
+| Campo | Tipo sugerido | Descripción |
+|---|---|---|
+| id | UUID | Identificador |
+| owner_id | UUID | Propietario |
+| template_id | UUID | Plantilla |
+| position_x | DECIMAL(6,2) | Posición horizontal |
+| position_y | DECIMAL(6,2) | Posición vertical |
+| width | DECIMAL(6,2) | Ancho |
+| height | DECIMAL(6,2) | Alto |
+| created_at | TIMESTAMP | Creación |
+| updated_at | TIMESTAMP | Actualización |
+
+Relaciones:
+
+```text
+owners   1 ───── 1 labels
+templates 1 ──── N labels
+```
+
+Se deberá establecer una restricción UNIQUE sobre `labels.owner_id` para garantizar que no existan dos etiquetas para el mismo propietario.
+
+La relación deberá permitir que una etiqueta utilice una plantilla compartida por diferentes propietarios.
+
+## 9.6. Diagrama entidad-relación
+
+```mermaid
+erDiagram
+    ADMINISTRATORS {
+        uuid id PK
+        varchar username
+        varchar password_hash
+    }
+
+    OWNERS {
+        uuid id PK
+        varchar first_name
+        varchar last_name
+        varchar email
+        varchar phone
+        boolean status
+        varchar public_token_hash
+        integer token_version
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    OWNER_DOCUMENTS {
+        uuid id PK
+        uuid owner_id FK
+        varchar original_name
+        varchar storage_path
+        varchar mime_type
+        bigint file_size
+        boolean is_public
+        timestamp created_at
+    }
+
+    TEMPLATES {
+        uuid id PK
+        varchar name
+        varchar storage_path
+        varchar mime_type
+        integer width
+        integer height
+        timestamp created_at
+    }
+
+    LABELS {
+        uuid id PK
+        uuid owner_id FK
+        uuid template_id FK
+        decimal position_x
+        decimal position_y
+        decimal width
+        decimal height
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    OWNERS ||--o{ OWNER_DOCUMENTS : tiene
+    OWNERS ||--o| LABELS : posee
+    TEMPLATES ||--o{ LABELS : utiliza
+```
+
+---
+
+# 10. Arquitectura técnica propuesta
+
+## 10.1. Arquitectura general
+
+Se recomienda implementar una arquitectura web cliente-servidor.
+
+Componentes:
+
+1. Frontend.
+2. Backend/API REST.
+3. Base de datos relacional.
+4. Almacenamiento de archivos.
+5. Servicio o biblioteca de generación QR.
+6. Motor de composición de imágenes.
+
+Diagrama general:
+
+```mermaid
+flowchart TD
+    A[Administrador] --> B[Frontend administrativo]
+    C[Visitante] --> D[Ficha pública]
+    B --> E[Backend API REST]
+    D --> E
+    E --> F[Base de datos]
+    E --> G[Almacenamiento de archivos]
+    E --> H[Generador QR]
+    E --> I[Compositor de imágenes]
+    H --> I
+    G --> D
+```
+
+## 10.2. Frontend
+
+Responsabilidades:
+
+- Mostrar las cuatro secciones del sistema.
+- Gestionar formularios.
+- Validar campos en cliente.
+- Mostrar listados y resultados de búsqueda.
+- Mostrar documentos e imágenes.
+- Gestionar el editor visual.
+- Permitir arrastrar y redimensionar el QR.
+- Mostrar vistas previas en tiempo real.
+- Consumir la API.
+- Mostrar errores y confirmaciones.
+
+La interfaz deberá separar los componentes visuales y la lógica de negocio.
+
+## 10.3. Backend
+
+Responsabilidades:
+
+- Autenticar al administrador.
+- Validar permisos administrativos.
+- Registrar propietarios.
+- Gestionar documentos.
+- Administrar plantillas.
+- Crear y actualizar etiquetas.
+- Generar tokens.
+- Validar fichas públicas.
+- Generar códigos QR.
+- Generar imágenes finales.
+- Aplicar reglas de negocio.
+- Controlar transacciones de base de datos.
+
+Las validaciones importantes nunca deberán depender exclusivamente del frontend.
+
+## 10.4. Base de datos
+
+La base de datos deberá almacenar información estructurada.
+
+No se recomienda almacenar imágenes como cadenas Base64 directamente en las tablas.
+
+Los archivos deberán guardarse en almacenamiento de archivos y la base de datos conservará sus referencias.
+
+## 10.5. Almacenamiento
+
+Se deberá contar con almacenamiento para:
+
+- Plantillas.
+- Documentos de propietarios.
+- Imágenes finales de etiquetas, si se decide conservarlas.
+
+Las rutas de almacenamiento no deberán exponerse como rutas internas del servidor.
+
+El acceso a archivos privados deberá pasar por validaciones del backend.
+
+---
+
+# 11. API REST propuesta
+
+La siguiente estructura representa una propuesta de endpoints. Los nombres definitivos podrán ajustarse durante el desarrollo, manteniendo las responsabilidades y reglas establecidas.
+
+Prefijo:
+
+```text
+/api/v1
+```
+
+## 11.1. Autenticación administrativa
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| POST | /auth/login | Iniciar sesión |
+| POST | /auth/logout | Cerrar sesión |
+| GET | /auth/me | Consultar sesión actual |
+
+No se requieren endpoints de registro de administradores ni gestión de múltiples roles.
+
+## 11.2. Propietarios
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| GET | /owners | Listar propietarios |
+| GET | /owners/{id} | Consultar propietario |
+| POST | /owners | Crear propietario |
+| PUT | /owners/{id} | Actualizar propietario |
+| PATCH | /owners/{id}/status | Activar o desactivar |
+| GET | /owners/{id}/label | Consultar etiqueta |
+
+La creación deberá permitir enviar los datos del propietario y la configuración inicial de su etiqueta.
+
+## 11.3. Documentos
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| GET | /owners/{id}/documents | Listar documentos |
+| POST | /owners/{id}/documents | Cargar documentos |
+| PATCH | /documents/{id}/visibility | Modificar visibilidad |
+| DELETE | /documents/{id} | Eliminar documento |
+| GET | /documents/{id}/preview | Visualizar documento en administración |
+
+La consulta pública de documentos deberá utilizar una ruta pública controlada que valide propietario, token y visibilidad.
+
+## 11.4. Plantillas
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| GET | /templates | Listar plantillas |
+| GET | /templates/{id} | Consultar plantilla |
+| POST | /templates | Cargar plantilla |
+| DELETE | /templates/{id} | Eliminar plantilla |
+
+## 11.5. Etiquetas
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| GET | /labels/{id} | Consultar etiqueta |
+| PUT | /owners/{id}/label | Crear o actualizar configuración |
+| POST | /owners/{id}/label/render | Generar imagen final |
+
+La actualización deberá guardar la plantilla y las coordenadas relativas del QR.
+
+## 11.6. Ficha pública
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| GET | /public/{token} | Consultar ficha pública |
+| GET | /public/{token}/documents/{documentId} | Consultar documento público |
+
+Estos endpoints no deberán requerir sesión administrativa, pero sí validar el token y la autorización pública de cada recurso.
+
+---
+
+# 12. Seguridad
+
+La aplicación manejará información personal y documentos, por lo que deberá implementar controles de seguridad desde el inicio.
+
+## 12.1. Autenticación
+
+- El panel administrativo deberá requerir autenticación.
+- Las contraseñas deberán almacenarse mediante algoritmos de hash seguros como Argon2id o bcrypt.
+- Las sesiones deberán manejarse mediante cookies seguras o un mecanismo equivalente.
+- Las cookies deberán utilizar `HttpOnly`, `Secure` y `SameSite` según el entorno.
+- Las rutas administrativas deberán estar protegidas en backend.
+
+## 12.2. Tokens QR
+
+Los tokens deberán:
+
+- Generarse mediante un generador criptográficamente seguro.
+- Tener suficiente entropía.
+- Ser únicos.
+- No contener información personal.
+- No utilizar IDs secuenciales.
+- Poder revocarse.
+- Validarse en el servidor.
+
+Se recomienda generar tokens aleatorios de al menos 192 bits de entropía.
+
+La aplicación deberá almacenar un hash del token para evitar guardar el secreto original en texto plano.
+
+## 12.3. Archivos
+
+El backend deberá validar:
+
+- Extensión.
+- Tipo MIME real.
+- Firma o contenido del archivo.
+- Tamaño máximo.
+- Cantidad máxima de documentos.
+
+No se deberá confiar únicamente en el nombre o extensión del archivo.
+
+Los archivos deberán almacenarse fuera del directorio público de ejecución, salvo que exista una capa de acceso controlado.
+
+## 12.4. Protección de API
+
+Implementar:
+
+- Validación de entradas.
+- Consultas parametrizadas u ORM.
+- Protección CSRF cuando corresponda.
+- Protección contra XSS.
+- Control de acceso por endpoint.
+- Limitación de solicitudes en endpoints públicos.
+- Manejo seguro de errores.
+- Registro técnico de errores sin exponer datos sensibles.
+
+## 12.5. Privacidad
+
+La ficha pública deberá aplicar una política de mínimo acceso.
+
+El hecho de que un documento esté almacenado en el sistema no implica que pueda consultarse públicamente.
+
+La visibilidad deberá verificarse en cada solicitud al documento.
+
+---
+
+# 13. Diseño e interfaz de usuario
+
+## 13.1. Estilo visual
+
+Se propone una interfaz administrativa moderna, limpia y funcional.
+
+Características:
+
+- Fondo general gris muy claro.
+- Paneles blancos.
+- Bordes discretos.
+- Esquinas redondeadas.
+- Tipografía sans-serif.
+- Azul como color principal.
+- Verde para estados activos.
+- Rojo para acciones destructivas o estados inactivos.
+- Espaciado consistente.
+- Formularios claros.
+- Tablas con jerarquía visual.
+
+La interfaz deberá priorizar la claridad y facilidad de operación.
+
+## 13.2. Navegación
+
+La navegación tendrá cuatro opciones:
+
+- Propietarios.
+- Plantillas.
+- Editor de etiquetas QR.
+- Ficha pública.
+
+No deberá incorporar un dashboard ni apartados adicionales.
+
+## 13.3. Pantalla de propietarios
+
+Deberá mostrar una tabla con la información principal y las acciones disponibles.
+
+La acción **Ver ficha QR** deberá permitir visualizar directamente la ficha del propietario seleccionado.
+
+## 13.4. Formulario de creación
+
+El formulario deberá integrar dos áreas:
+
+**Información del propietario:**
+
+- Datos personales.
+- Documentos.
+- Configuración de visibilidad.
+
+**Diseño inicial de etiqueta:**
+
+- Selector de plantilla.
+- Vista previa.
+- Código QR.
+- Controles de posición y tamaño.
+
+El usuario deberá poder configurar la etiqueta sin abandonar el formulario.
+
+## 13.5. Editor posterior
+
+Deberá contar con:
+
+- Selector de propietario.
+- Selector de plantilla.
+- Área de trabajo.
+- Código QR arrastrable.
+- Control de redimensionamiento.
+- Controles numéricos.
+- Acción para guardar cambios.
+
+## 13.6. Ficha pública
+
+Deberá tener un diseño diferente al panel administrativo.
+
+Se recomienda una presentación sencilla, adaptable a dispositivos móviles y centrada en la información del propietario.
+
+La ficha deberá priorizar la lectura y la visualización de los documentos autorizados.
+
+---
+
+# 14. Requisitos no funcionales
+
+## 14.1. Rendimiento
+
+- Las vistas deberán cargar sin reconstrucciones innecesarias.
+- El movimiento del QR deberá ser fluido.
+- Las imágenes deberán optimizarse sin perder calidad necesaria.
+- Las consultas deberán utilizar índices adecuados.
+- La búsqueda de propietarios deberá ser eficiente.
+- La generación de imágenes no deberá bloquear innecesariamente la interfaz.
+
+## 14.2. Compatibilidad
+
+La aplicación deberá funcionar en:
+
+- Google Chrome.
+- Microsoft Edge.
+- Mozilla Firefox.
+- Safari.
+
+También deberá adaptarse a:
+
+- Computadoras.
+- Tablets.
+- Teléfonos móviles.
+
+El editor deberá soportar mouse y pantallas táctiles.
+
+## 14.3. Mantenibilidad
+
+El proyecto deberá mantener separación entre:
+
+- Presentación.
+- Lógica de negocio.
+- Acceso a datos.
+- Servicios.
+- Validaciones.
+- Almacenamiento.
+
+No se recomienda implementar toda la lógica de la aplicación dentro de un único archivo frontend.
+
+## 14.4. Disponibilidad
+
+La ficha pública deberá estar disponible mientras el servicio y su infraestructura estén operativos.
+
+El sistema deberá manejar errores de conexión, almacenamiento y generación de imágenes de forma controlada.
+
+## 14.5. Consistencia
+
+Las operaciones que afecten simultáneamente al propietario y a su etiqueta deberán ejecutarse mediante transacciones de base de datos.
+
+La aplicación no deberá dejar registros incompletos ante fallos.
+
+---
+
+# 15. Qué hace y qué no hace CascoQR
+
+## 15.1. Funcionalidades incluidas
+
+- Administrar propietarios.
+- Registrar y editar información.
+- Activar y desactivar propietarios.
+- Gestionar hasta cinco documentos por propietario.
+- Definir visibilidad individual de documentos.
+- Administrar plantillas de etiquetas.
+- Crear una etiqueta durante el registro.
+- Crear un código QR por propietario.
+- Mover el QR sobre una plantilla.
+- Redimensionar el QR.
+- Modificar etiquetas posteriormente.
+- Generar una imagen final de etiqueta.
+- Consultar una ficha pública individual.
+- Mostrar documentos autorizados.
+- Revocar y renovar tokens mediante desactivación y reactivación.
+
+## 15.2. Funcionalidades excluidas
+
+Las siguientes funcionalidades no forman parte del alcance:
+
+| Funcionalidad | Incluida |
+|---|---|
+| Dashboard | No |
+| Gráficas y estadísticas | No |
+| Indicadores de actividad | No |
+| Actividad reciente | No |
+| Gestión de múltiples administradores | No |
+| Roles adicionales | No |
+| Registro de propietarios mediante cuenta | No |
+| Inicio de sesión de propietarios | No |
+| Panel personal de propietarios | No |
+| Editor de textos sobre etiquetas | No |
+| Editor de logotipos | No |
+| Editor de imágenes adicionales | No |
+| Editor de formas y elementos gráficos | No |
+| Catálogo público de propietarios | No |
+| Gestión de inventario de cascos | No |
+| Seguimiento de motocicletas | No |
+| Geolocalización | No |
+| Rastreo GPS | No |
+| Aplicación móvil nativa | No |
+| Gestión de pagos | No |
+| Notificaciones | No |
+| Analítica de escaneos | No |
+
+Cualquier funcionalidad adicional deberá considerarse un cambio de alcance y evaluarse por separado.
+
+---
+
+# 16. Flujos principales del sistema
+
+## 16.1. Registro de propietario y etiqueta
+
+```mermaid
+flowchart TD
+    A[Administrador] --> B[Nuevo propietario]
+    B --> C[Capturar información]
+    C --> D[Agregar documentos]
+    D --> E[Seleccionar plantilla]
+    E --> F[Generar token y QR]
+    F --> G[Mostrar vista previa]
+    G --> H[Mover y redimensionar QR]
+    H --> I[Guardar propietario y etiqueta]
+    I --> J[Persistir información]
+    J --> K[Propietario registrado]
+```
+
+## 16.2. Edición de etiqueta
+
+```mermaid
+flowchart TD
+    A[Editor de etiquetas QR] --> B[Seleccionar propietario]
+    B --> C[Recuperar etiqueta]
+    C --> D[Mostrar plantilla y QR]
+    D --> E[Modificar posición o tamaño]
+    E --> F{Cambiar plantilla}
+    F -->|Sí| G[Seleccionar nueva plantilla]
+    F -->|No| H[Guardar configuración]
+    G --> H
+    H --> I[Actualizar etiqueta]
+```
+
+## 16.3. Consulta pública
+
+```mermaid
+flowchart TD
+    A[Escanear código QR] --> B[Abrir URL pública]
+    B --> C[Enviar token al backend]
+    C --> D{Token válido y propietario activo}
+    D -->|No| E[Mostrar ficha no disponible]
+    D -->|Sí| F[Consultar propietario]
+    F --> G[Consultar documentos públicos]
+    G --> H[Mostrar ficha]
+```
+
+## 16.4. Desactivación y reactivación
+
+```mermaid
+flowchart TD
+    A[Administrador desactiva propietario] --> B[Marcar propietario inactivo]
+    B --> C[Revocar token]
+    C --> D[Ficha pública deja de estar disponible]
+    D --> E[Administrador reactiva propietario]
+    E --> F[Generar token nuevo]
+    F --> G[Actualizar referencia QR]
+    G --> H[Ficha pública disponible con nuevo token]
+```
+
+---
+
+# 17. Criterios de aceptación
+
+La aplicación se considerará funcional cuando cumpla los siguientes escenarios.
+
+## 17.1. Propietarios
+
+- [ ] Se puede registrar un propietario con nombre y apellidos.
+- [ ] Se pueden registrar correo y teléfono.
+- [ ] Se puede consultar el listado.
+- [ ] Se pueden buscar propietarios.
+- [ ] Se pueden editar sus datos.
+- [ ] Se pueden activar y desactivar.
+- [ ] Se conserva el token al actualizar datos personales.
+- [ ] Se genera un token nuevo al reactivar.
+
+## 17.2. Documentos
+
+- [ ] Se pueden cargar documentos JPG y PNG.
+- [ ] Se respeta el límite de cinco documentos.
+- [ ] Se pueden visualizar documentos.
+- [ ] Se pueden eliminar documentos.
+- [ ] Se puede cambiar su visibilidad.
+- [ ] Los documentos privados no aparecen en la ficha pública.
+
+## 17.3. Plantillas
+
+- [ ] Se pueden cargar plantillas.
+- [ ] Se pueden visualizar.
+- [ ] Se pueden eliminar cuando no están asociadas.
+- [ ] No se permite eliminar una plantilla utilizada.
+
+## 17.4. Etiquetas
+
+- [ ] Se puede crear una etiqueta durante el registro del propietario.
+- [ ] Se puede seleccionar una plantilla.
+- [ ] Se genera un QR individual.
+- [ ] Se puede mover el QR.
+- [ ] Se puede redimensionar.
+- [ ] Los cambios se visualizan inmediatamente.
+- [ ] Se pueden guardar las coordenadas.
+- [ ] Se puede editar la etiqueta posteriormente.
+- [ ] Se puede generar la imagen final.
+
+## 17.5. Ficha pública
+
+- [ ] El QR abre la URL pública correcta.
+- [ ] El token identifica al propietario correspondiente.
+- [ ] Se muestra la información autorizada.
+- [ ] Se muestran exclusivamente documentos públicos.
+- [ ] Un propietario inactivo no puede consultar su ficha.
+- [ ] Un token revocado no permite acceder.
+- [ ] Un token nuevo funciona después de reactivar.
+
+## 17.6. Seguridad
+
+- [ ] Las rutas administrativas requieren autenticación.
+- [ ] Las operaciones administrativas se validan en backend.
+- [ ] Los tokens son impredecibles.
+- [ ] Los documentos privados no son accesibles públicamente.
+- [ ] Los archivos se validan en servidor.
+- [ ] La API no expone información interna innecesaria.
+
+---
+
+# 18. Estrategia de pruebas
+
+Se recomienda dividir las pruebas en cuatro niveles.
+
+## 18.1. Pruebas unitarias
+
+Validar individualmente:
+
+- Generación de tokens.
+- Validación de archivos.
+- Validación de campos.
+- Cálculo de posición.
+- Límites de movimiento del QR.
+- Reglas de visibilidad.
+- Revocación de tokens.
+
+## 18.2. Pruebas de integración
+
+Validar:
+
+- Creación de propietario y etiqueta.
+- Carga de documentos.
+- Relación entre propietarios y etiquetas.
+- Relación entre etiquetas y plantillas.
+- Actualización de datos.
+- Actualización de posiciones.
+- Consulta de fichas públicas.
+
+## 18.3. Pruebas funcionales
+
+Validar los flujos completos desde la interfaz administrativa.
+
+Se deberá comprobar especialmente que el alta del propietario y su primera etiqueta se realicen dentro del mismo proceso.
+
+## 18.4. Pruebas de seguridad
+
+Validar:
+
+- Acceso a rutas sin autenticación.
+- Acceso a documentos privados.
+- Uso de tokens revocados.
+- Acceso a fichas de propietarios inactivos.
+- Manipulación de identificadores.
+- Carga de archivos no permitidos.
+- Intentos de acceso a recursos administrativos desde la ficha pública.
+
+---
+
+# 19. Fases de desarrollo recomendadas
+
+## Fase 1. Infraestructura y autenticación
+
+- Configuración del proyecto.
+- Configuración de base de datos.
+- Configuración de almacenamiento.
+- Implementación del administrador.
+- Protección de rutas.
+
+## Fase 2. Propietarios y documentos
+
+- Modelo de propietarios.
+- CRUD.
+- Búsqueda.
+- Activación y desactivación.
+- Carga y visualización de documentos.
+- Control de visibilidad.
+
+## Fase 3. Plantillas
+
+- Carga de imágenes.
+- Visualización.
+- Validación de formatos.
+- Eliminación condicionada.
+
+## Fase 4. Generación y edición QR
+
+- Generación de tokens.
+- Generación de QR.
+- Integración del editor.
+- Movimiento y redimensionamiento.
+- Persistencia de coordenadas.
+- Generación de imagen final.
+
+## Fase 5. Ficha pública
+
+- Resolución del token.
+- Consulta de propietario.
+- Consulta de documentos públicos.
+- Validación de estado.
+- Revocación y renovación.
+
+## Fase 6. Pruebas y despliegue
+
+- Pruebas funcionales.
+- Pruebas de seguridad.
+- Pruebas de compatibilidad.
+- Optimización.
+- Despliegue en servidor.
+- Configuración de dominio y HTTPS.
+
+---
+
+# 20. Decisiones técnicas que deberán definirse antes de producción
+
+Estas decisiones no modifican el alcance funcional, pero deben concretarse para implementar correctamente el sistema.
+
+| Decisión | Consideración |
+|---|---|
+| Framework frontend | Seleccionar framework o tecnología de interfaz |
+| Framework backend | Seleccionar framework para API REST |
+| Motor de base de datos | PostgreSQL o MySQL |
+| Almacenamiento | Local privado u objeto compatible con S3 |
+| Autenticación | Sesión segura o mecanismo equivalente |
+| Generación QR | Biblioteca mantenida y ejecutada desde backend |
+| Composición de imagen | Biblioteca capaz de superponer el QR a la plantilla |
+| Formato final | PNG recomendado para la imagen compuesta |
+| Resolución final | Definir según dimensiones físicas y calidad de impresión |
+| Tamaño máximo de archivos | Establecer límites de carga |
+| Política de conservación | Definir eliminación y retención de documentos |
+
+## 20.1. Recomendación para la generación de etiquetas
+
+La composición final deberá realizarse preferentemente en backend para garantizar un resultado consistente.
+
+El proceso será:
+
+1. Recuperar la plantilla original.
+2. Recuperar la configuración de posición y dimensiones.
+3. Generar el QR con la URL pública.
+4. Escalar el QR según las dimensiones relativas.
+5. Componer el QR sobre la plantilla.
+6. Exportar el resultado en PNG.
+7. Entregar la imagen al administrador.
+
+La biblioteca deberá conservar una resolución suficiente para impresión.
+
+No deberá utilizarse una captura de pantalla del navegador como mecanismo principal de generación de etiquetas.
+
+## 20.2. Recomendación para la consistencia del QR
+
+El QR deberá codificar una URL pública estable.
+
+La configuración visual de la etiqueta podrá modificarse sin necesidad de cambiar el token.
+
+La desactivación y reactivación sí modificarán el token, por lo que la imagen final de la etiqueta deberá regenerarse o actualizarse para reflejar el nuevo QR.
+
+---
+
+# 21. Definición de terminado
+
+El proyecto podrá considerarse terminado cuando:
+
+1. Los cuatro módulos estén implementados.
+2. El administrador pueda gestionar propietarios y documentos.
+3. Las plantillas puedan administrarse correctamente.
+4. La primera etiqueta pueda crearse durante el registro.
+5. El editor posterior funcione independientemente.
+6. El movimiento y redimensionamiento del QR sean fluidos.
+7. Las posiciones se guarden correctamente.
+8. La imagen final de la etiqueta pueda generarse.
+9. El QR pueda escanearse desde otro dispositivo.
+10. La ficha pública muestre los datos correctos.
+11. Los documentos privados permanezcan protegidos.
+12. La activación, desactivación y renovación de tokens funcionen.
+13. Las rutas administrativas estén protegidas.
+14. Las pruebas funcionales y de seguridad hayan sido completadas.
+
+---
+
+# 22. Resumen ejecutivo del alcance
+
+CascoQR es un sistema web de administración de propietarios y etiquetas QR para cascos de motocicleta.
+
+Su función principal es permitir que un administrador registre propietarios, gestione su documentación y cree una etiqueta personalizada utilizando una plantilla estática y un código QR.
+
+El código QR será el único elemento editable del diseño. Podrá moverse y redimensionarse, y su configuración se guardará de manera independiente para cada propietario.
+
+Cada código QR dirigirá a una ficha pública individual que mostrará la información autorizada y los documentos marcados como públicos.
+
+La solución se limita a cuatro módulos: Propietarios, Plantillas, Editor de etiquetas QR y Ficha pública.
+
+No incluye dashboard, estadísticas, múltiples administradores, cuentas de propietarios, inventario, rastreo, geolocalización ni funcionalidades ajenas a la administración y consulta de etiquetas.
+
+**El objetivo técnico es construir una aplicación segura, mantenible y funcional que permita administrar el ciclo completo de una etiqueta QR: creación, personalización, almacenamiento, consulta pública, revocación y renovación.**

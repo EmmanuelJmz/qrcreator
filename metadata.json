@@ -1,0 +1,6 @@
+{
+  "name": "CascoQR",
+  "description": "Sistema de administración de propietarios, plantillas y etiquetas QR para cascos de motocicleta con ficha pública de consulta.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
