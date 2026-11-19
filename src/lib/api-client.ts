@@ -1,3 +1,5 @@
+import type { QrStyle } from '@/src/lib/qr-styled';
+
 export interface AdminUser {
   username: string;
 }
@@ -40,6 +42,7 @@ export interface LabelConfig {
   y: number;
   width: number;
   height: number;
+  qrStyle: QrStyle;
   createdAt: string;
   updatedAt: string;
 }
@@ -235,14 +238,22 @@ export const apiClient = {
     }>(`/api/v1/owners/${ownerId}/label`),
   saveOwnerLabel: (
     ownerId: string,
-    payload: { templateId: string; x: number; y: number; width: number; height: number },
+    payload: {
+      templateId: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      qrStyle: QrStyle;
+    },
   ) =>
     requestJson<{ label: LabelConfig }>(`/api/v1/owners/${ownerId}/label`, {
       method: 'PUT',
       body: JSON.stringify(payload),
     }),
-  fetchQrSvg: async (ownerId: string): Promise<string> => {
-    const res = await fetch(`/api/v1/owners/${ownerId}/label/qr`, {
+  fetchQrSvg: async (ownerId: string, style?: QrStyle): Promise<string> => {
+    const query = style ? `?style=${encodeURIComponent(style)}` : '';
+    const res = await fetch(`/api/v1/owners/${ownerId}/label/qr${query}`, {
       credentials: 'include',
       headers: getAuthHeaders(),
     });

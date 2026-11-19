@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { QR_STYLE_IDS } from '../../lib/qr-styled.ts';
 import {
   EMAIL_REGEX,
   normalizePersonName,
@@ -60,6 +61,10 @@ export const ownerInfoSchema = z.object({
   phone: optionalPhoneSchema.optional().default(''),
 });
 
+export const qrStyleSchema = z.enum(QR_STYLE_IDS, {
+  error: 'Estilo de código QR inválido.',
+});
+
 export const labelConfigSchema = z.object({
   templateId: z.string().uuid('La plantilla seleccionada no es válida.'),
   x: z.coerce.number().min(0, 'X no puede ser negativo.').max(100, 'X no puede exceder 100%.'),
@@ -72,6 +77,7 @@ export const labelConfigSchema = z.object({
     .number()
     .gt(0, 'El alto debe ser mayor que 0.')
     .max(100, 'El alto no puede exceder 100%.'),
+  qrStyle: qrStyleSchema.optional().default('fluid'),
 });
 
 export const ownerStatusSchema = z.object({

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Download, RotateCcw, Save } from 'lucide-react';
 import { QRLabelCanvas } from '@/src/components/qr-label-canvas';
+import { QrStyleSelector } from '@/src/components/qr-style-selector';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
@@ -22,6 +23,11 @@ import {
   defaultSquareLabelGeometry,
   type LabelGeometry,
 } from '@/src/lib/qr-geometry';
+import {
+  normalizeQrStyle,
+  renderStyledQrSvg,
+  type QrStyle,
+} from '@/src/lib/qr-styled';
 
 interface LabelEditorModuleProps {
   initialOwnerId?: string | null;
@@ -32,10 +38,12 @@ export function LabelEditorModule({ initialOwnerId }: LabelEditorModuleProps) {
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
   const [selectedOwnerId, setSelectedOwnerId] = useState<string>(initialOwnerId || '');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [qrStyle, setQrStyle] = useState<QrStyle>('fluid');
   const [geometry, setGeometry] = useState<LabelGeometry>({ x: 65, y: 20, width: 20, height: 20 });
   const [savedSnapshot, setSavedSnapshot] = useState<string>('');
 
   const [qrSvg, setQrSvg] = useState<string>('');
+  const [ownerPublicUrl, setOwnerPublicUrl] = useState<string | null>(null);
   const [ownerActive, setOwnerActive] = useState<boolean>(true);
   const [loadingInit, setLoadingInit] = useState(true);
   const [loadingLabel, setLoadingLabel] = useState(false);
@@ -91,8 +99,11 @@ export function LabelEditorModule({ initialOwnerId }: LabelEditorModuleProps) {
       try {
         const labelRes = await apiClient.getOwnerLabel(ownerId);
         setOwnerActive(labelRes.owner.status);
+        setOwnerPublicUrl(labelRes.owner.publicUrl);
 
+        let loadedStyle: QrStyle = 'fluid';
         if (labelRes.label) {
+          loadedStyle = normalizeQrStyle(labelRes.label.qrStyle);
           const geom: LabelGeometry = {
             x: labelRes.label.x,
             y: labelRes.label.y,
@@ -100,18 +111,26 @@ export function LabelEditorModule({ initialOwnerId }: LabelEditorModuleProps) {
             height: labelRes.label.height,
           };
           setSelectedTemplateId(labelRes.label.templateId);
+          setQrStyle(loadedStyle);
           setGeometry(geom);
-          setSavedSnapshot(JSON.stringify({ templateId: labelRes.label.templateId, ...geom }));
+          setSavedSnapshot(
+            JSON.stringify({
+              templateId: labelRes.label.templateId,
+              ...geom,
+              qrStyle: loadedStyle,
+            }),
+          );
         } else if (availTemplates.length > 0) {
           const fallbackTpl = availTemplates[0];
           const geom = defaultSquareLabelGeometry(fallbackTpl.width, fallbackTpl.height);
           setSelectedTemplateId(fallbackTpl.id);
+          setQrStyle('fluid');
           setGeometry(geom);
           setSavedSnapshot('');
         }
 
         if (labelRes.owner.status) {
-          const svg = await apiClient.fetchQrSvg(ownerId);
+          const svg = await apiClient.fetchQrSvg(ownerId, loadedStyle);
           setQrSvg(svg);
         } else {
           setQrSvg('');
@@ -145,6 +164,21 @@ export function LabelEditorModule({ initialOwnerId }: LabelEditorModuleProps) {
           tpl.height,
         ),
       );
+    }
+  };
+
+  const handleQrStyleChange = (nextStyle: QrStyle) => {
+    setQrStyle(nextStyle);
+    setFeedback(null);
+    if (!ownerActive) return;
+
+    if (ownerPublicUrl) {
+      setQrSvg(renderStyledQrSvg(ownerPublicUrl, { style: nextStyle }));
+    } else if (selectedOwnerId) {
+      void apiClient
+        .fetchQrSvg(selectedOwnerId, nextStyle)
+        .then(setQrSvg)
+        .catch(() => {});
     }
   };
 
@@ -186,6 +220,7 @@ export function LabelEditorModule({ initialOwnerId }: LabelEditorModuleProps) {
       const res = await apiClient.saveOwnerLabel(selectedOwnerId, {
         templateId: selectedTemplateId,
         ...clamped,
+        qrStyle,
       });
       const updatedGeom = {
         x: res.label.x,
@@ -193,8 +228,16 @@ export function LabelEditorModule({ initialOwnerId }: LabelEditorModuleProps) {
         width: res.label.width,
         height: res.label.height,
       };
+      const updatedStyle = normalizeQrStyle(res.label.qrStyle);
       setGeometry(updatedGeom);
-      setSavedSnapshot(JSON.stringify({ templateId: res.label.templateId, ...updatedGeom }));
+      setQrStyle(updatedStyle);
+      setSavedSnapshot(
+        JSON.stringify({
+          templateId: res.label.templateId,
+          ...updatedGeom,
+          qrStyle: updatedStyle,
+        }),
+      );
       setFeedback('Configuración de etiqueta guardada correctamente.');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar la etiqueta.');
@@ -209,7 +252,11 @@ export function LabelEditorModule({ initialOwnerId }: LabelEditorModuleProps) {
     setError(null);
 
     try {
-      const currentSnap = JSON.stringify({ templateId: selectedTemplateId, ...geometry });
+      const currentSnap = JSON.stringify({
+        templateId: selectedTemplateId,
+        ...geometry,
+        qrStyle,
+      });
       if (currentSnap !== savedSnapshot) {
         const clamped = clampSquareLabelGeometry(
           { x: geometry.x, y: geometry.y, width: geometry.width },
@@ -219,8 +266,11 @@ export function LabelEditorModule({ initialOwnerId }: LabelEditorModuleProps) {
         await apiClient.saveOwnerLabel(selectedOwnerId, {
           templateId: selectedTemplateId,
           ...clamped,
+          qrStyle,
         });
-        setSavedSnapshot(JSON.stringify({ templateId: selectedTemplateId, ...clamped }));
+        setSavedSnapshot(
+          JSON.stringify({ templateId: selectedTemplateId, ...clamped, qrStyle }),
+        );
       }
 
       const blob = await apiClient.renderLabelPng(selectedOwnerId);
@@ -264,7 +314,8 @@ export function LabelEditorModule({ initialOwnerId }: LabelEditorModuleProps) {
   }
 
   const hasUnsavedChanges =
-    savedSnapshot !== JSON.stringify({ templateId: selectedTemplateId, ...geometry });
+    savedSnapshot !==
+    JSON.stringify({ templateId: selectedTemplateId, ...geometry, qrStyle });
 
   return (
     <div className="space-y-6">
@@ -329,37 +380,47 @@ export function LabelEditorModule({ initialOwnerId }: LabelEditorModuleProps) {
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
         <div className="xl:col-span-8 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-white p-4">
-            <div className="space-y-1.5">
-              <Label>Propietario</Label>
-              <Select value={selectedOwnerId} onValueChange={setSelectedOwnerId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un propietario" />
-                </SelectTrigger>
-                <SelectContent>
-                  {owners.map((owner) => (
-                    <SelectItem key={owner.id} value={owner.id}>
-                      {owner.fullName} {owner.status ? '' : '(Inactivo)'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Propietario</Label>
+                <Select value={selectedOwnerId} onValueChange={setSelectedOwnerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona un propietario" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {owners.map((owner) => (
+                      <SelectItem key={owner.id} value={owner.id}>
+                        {owner.fullName} {owner.status ? '' : '(Inactivo)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Plantilla de etiqueta</Label>
+                <Select value={selectedTemplateId} onValueChange={handleTemplateChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona una plantilla" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((tpl) => (
+                      <SelectItem key={tpl.id} value={tpl.id}>
+                        {tpl.name} ({tpl.width}×{tpl.height})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Plantilla de etiqueta</Label>
-              <Select value={selectedTemplateId} onValueChange={handleTemplateChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona una plantilla" />
-                </SelectTrigger>
-                <SelectContent>
-                  {templates.map((tpl) => (
-                    <SelectItem key={tpl.id} value={tpl.id}>
-                      {tpl.name} ({tpl.width}×{tpl.height})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="pt-2 border-t border-slate-100">
+              <QrStyleSelector
+                value={qrStyle}
+                onChange={handleQrStyleChange}
+                disabled={!ownerActive || saving}
+              />
             </div>
           </div>
 

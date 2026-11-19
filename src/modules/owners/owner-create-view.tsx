@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Plus, Save, Trash2, Upload } from 'lucide-react';
 import { QRLabelCanvas } from '@/src/components/qr-label-canvas';
+import { QrStyleSelector } from '@/src/components/qr-style-selector';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
@@ -18,7 +19,7 @@ import {
   defaultSquareLabelGeometry,
   type LabelGeometry,
 } from '@/src/lib/qr-geometry';
-import { renderStyledQrSvg } from '@/src/lib/qr-styled';
+import { renderStyledQrSvg, type QrStyle } from '@/src/lib/qr-styled';
 import {
   EMAIL_REGEX,
   formatFileSize,
@@ -52,24 +53,25 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
   const [draftDocs, setDraftDocs] = useState<DraftDocument[]>([]);
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [qrStyle, setQrStyle] = useState<QrStyle>('fluid');
   const [geometry, setGeometry] = useState<LabelGeometry>({ x: 65, y: 20, width: 20, height: 20 });
-  const [previewQrSvg, setPreviewQrSvg] = useState('');
 
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const previewQrSvg = useMemo(
+    () => renderStyledQrSvg('https://cascoqr.app/ficha/vista-previa', { style: qrStyle }),
+    [qrStyle],
+  );
+
   useEffect(() => {
     let cancelled = false;
     async function init() {
       try {
-        const [tplRes, svg] = await Promise.all([
-          apiClient.listTemplates(),
-          Promise.resolve(renderStyledQrSvg('https://cascoqr.app/ficha/vista-previa')),
-        ]);
+        const tplRes = await apiClient.listTemplates();
         if (cancelled) return;
         setTemplates(tplRes.templates);
-        setPreviewQrSvg(svg);
 
         if (tplRes.templates.length > 0) {
           const first = tplRes.templates[0];
@@ -240,6 +242,7 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
         JSON.stringify({
           templateId: selectedTemplateId,
           ...clamped,
+          qrStyle,
         }),
       );
       fd.append(
@@ -471,6 +474,8 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
               </Select>
             </div>
           </div>
+
+          <QrStyleSelector value={qrStyle} onChange={setQrStyle} disabled={saving} />
 
           {loadingTemplates ? (
             <div className="h-80 rounded-xl bg-slate-100 animate-pulse" />

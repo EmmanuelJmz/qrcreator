@@ -5,8 +5,8 @@ import {
   computeSquareHeightPct,
   validateLabelGeometry,
 } from '@/src/lib/qr-geometry';
-import { renderStyledQrSvg } from '@/src/lib/qr-styled';
-import { ownerInfoSchema } from '@/src/server/schemas';
+import { QR_STYLE_IDS, renderStyledQrSvg } from '@/src/lib/qr-styled';
+import { labelConfigSchema, ownerInfoSchema } from '@/src/server/schemas';
 import { generateQrPngBuffer } from '@/src/server/services/label-render.service';
 import {
   createAdminSessionToken,
@@ -161,17 +161,50 @@ describe('Seguridad criptográfica de tokens y firma binaria de archivos', () =>
     ).toBe(false);
   });
 
-  it('genera QR estilizado fluido (#0F172A con ojos naranja #DC4C0D) en SVG y PNG cuadrado', async () => {
-    const svg = renderStyledQrSvg('https://cascoqr.app/ficha/ejemplo-token-123');
-    expect(svg).toContain('<svg');
-    expect(svg).toContain('fill="#0F172A"');
-    expect(svg).toContain('fill="#DC4C0D"');
-    expect(svg).toContain('<path d="M');
+  it('genera los 4 estilos de QR en SVG y PNG cuadrado', async () => {
+    const sampleUrl = 'https://cascoqr.app/ficha/ejemplo-token-123';
 
-    const png = await generateQrPngBuffer('https://cascoqr.app/ficha/ejemplo-token-123', 240);
-    const meta = await sharp(png).metadata();
-    expect(meta.format).toBe('png');
-    expect(meta.width).toBe(240);
-    expect(meta.height).toBe(240);
+    for (const style of QR_STYLE_IDS) {
+      const svg = renderStyledQrSvg(sampleUrl, { style });
+      expect(svg).toContain('<svg');
+      expect(svg).toContain('<path d="M');
+
+      const png = await generateQrPngBuffer(sampleUrl, 240, style);
+      const meta = await sharp(png).metadata();
+      expect(meta.format).toBe('png');
+      expect(meta.width).toBe(240);
+      expect(meta.height).toBe(240);
+    }
+
+    expect(renderStyledQrSvg(sampleUrl, { style: 'fluid' })).toContain('fill="#DC4C0D"');
+    expect(renderStyledQrSvg(sampleUrl, { style: 'dots' })).toContain('<circle');
+    expect(renderStyledQrSvg(sampleUrl, { style: 'rounded' })).toContain('<linearGradient');
+    expect(renderStyledQrSvg(sampleUrl, { style: 'diamonds' })).toContain('fill="#DC2626"');
+  });
+
+  it('valida qrStyle en labelConfigSchema y asigna fluid por defecto', () => {
+    const base = {
+      templateId: '550e8400-e29b-41d4-a716-446655440000',
+      x: 10,
+      y: 10,
+      width: 20,
+      height: 20,
+    };
+
+    const withDefault = labelConfigSchema.safeParse(base);
+    expect(withDefault.success).toBe(true);
+    if (withDefault.success) {
+      expect(withDefault.data.qrStyle).toBe('fluid');
+    }
+
+    for (const style of QR_STYLE_IDS) {
+      const parsed = labelConfigSchema.safeParse({ ...base, qrStyle: style });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) {
+        expect(parsed.data.qrStyle).toBe(style);
+      }
+    }
+
+    expect(labelConfigSchema.safeParse({ ...base, qrStyle: 'invalid-style' }).success).toBe(false);
   });
 });

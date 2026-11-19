@@ -4,6 +4,7 @@ import { Router } from 'express';
 import { getDb } from '../db/index.ts';
 import { labels, owners, templates } from '../db/schema.ts';
 import { validateLabelGeometry } from '../../lib/qr-geometry.ts';
+import { normalizeQrStyle } from '../../lib/qr-styled.ts';
 import { requireAdmin } from '../middleware/auth.middleware.ts';
 import { labelConfigSchema, uuidParamSchema } from '../schemas/index.ts';
 import {
@@ -64,6 +65,7 @@ labelsRouter.get('/owners/:id/label', requireAdmin, async (req, res, next) => {
         positionY: labels.positionY,
         width: labels.width,
         height: labels.height,
+        qrStyle: labels.qrStyle,
         createdAt: labels.createdAt,
         updatedAt: labels.updatedAt,
         templateName: templates.name,
@@ -108,6 +110,7 @@ labelsRouter.get('/owners/:id/label', requireAdmin, async (req, res, next) => {
             y: Number(label.positionY),
             width: Number(label.width),
             height: Number(label.height),
+            qrStyle: normalizeQrStyle(label.qrStyle),
             createdAt: toIso(label.createdAt),
             updatedAt: toIso(label.updatedAt),
           }
@@ -149,9 +152,21 @@ labelsRouter.get('/owners/:id/label/qr', requireAdmin, async (req, res, next) =>
       return;
     }
 
+    const queryStyle =
+      typeof req.query.style === 'string' ? normalizeQrStyle(req.query.style) : null;
+    let resolvedStyle = queryStyle;
+    if (!resolvedStyle) {
+      const labelStyleRows = await db
+        .select({ qrStyle: labels.qrStyle })
+        .from(labels)
+        .where(eq(labels.ownerId, idCheck.data))
+        .limit(1);
+      resolvedStyle = normalizeQrStyle(labelStyleRows[0]?.qrStyle);
+    }
+
     const token = decryptPublicToken(owner.encryptedPublicToken);
     const publicUrl = buildPublicCardUrl(token, getRequestOrigin(req));
-    const svg = await generateQrSvg(publicUrl);
+    const svg = await generateQrSvg(publicUrl, resolvedStyle);
 
     res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
     res.setHeader('Cache-Control', 'private, no-store');
@@ -238,6 +253,7 @@ labelsRouter.put('/owners/:id/label', requireAdmin, async (req, res, next) => {
           positionY: parsed.data.y.toFixed(2),
           width: parsed.data.width.toFixed(2),
           height: parsed.data.height.toFixed(2),
+          qrStyle: parsed.data.qrStyle,
           updatedAt: now,
         })
         .where(eq(labels.ownerId, idCheck.data));
@@ -254,6 +270,7 @@ labelsRouter.put('/owners/:id/label', requireAdmin, async (req, res, next) => {
           y: parsed.data.y,
           width: parsed.data.width,
           height: parsed.data.height,
+          qrStyle: parsed.data.qrStyle,
           createdAt: toIso(existingLabel.createdAt),
           updatedAt: now.toISOString(),
         },
@@ -270,6 +287,7 @@ labelsRouter.put('/owners/:id/label', requireAdmin, async (req, res, next) => {
       positionY: parsed.data.y.toFixed(2),
       width: parsed.data.width.toFixed(2),
       height: parsed.data.height.toFixed(2),
+      qrStyle: parsed.data.qrStyle,
       createdAt: now,
       updatedAt: now,
     });
@@ -286,6 +304,7 @@ labelsRouter.put('/owners/:id/label', requireAdmin, async (req, res, next) => {
         y: parsed.data.y,
         width: parsed.data.width,
         height: parsed.data.height,
+        qrStyle: parsed.data.qrStyle,
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       },
@@ -313,6 +332,7 @@ labelsRouter.post('/owners/:id/label/render', requireAdmin, async (req, res, nex
         positionX: labels.positionX,
         positionY: labels.positionY,
         width: labels.width,
+        qrStyle: labels.qrStyle,
         templateStorageKey: templates.storageKey,
         templateWidth: templates.width,
         templateHeight: templates.height,
@@ -347,6 +367,7 @@ labelsRouter.post('/owners/:id/label/render', requireAdmin, async (req, res, nex
       positionY: Number(row.positionY),
       widthPct: Number(row.width),
       publicUrl,
+      qrStyle: normalizeQrStyle(row.qrStyle),
     });
 
     const safeSlug =

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { normalizeQrStyle } from '../../lib/qr-styled.ts';
 import { getPublicQueryExecutor } from '../db/index.ts';
 import { rateLimitPublic } from '../middleware/auth.middleware.ts';
 import { publicTokenParamSchema, uuidParamSchema } from '../schemas/index.ts';
@@ -79,6 +80,7 @@ publicRouter.get('/:token/label-image', async (req, res, next) => {
       positionY: Number(card.qr_y),
       widthPct: Number(card.qr_width),
       publicUrl,
+      qrStyle: normalizeQrStyle(card.qr_style),
     });
 
     res.setHeader('Content-Type', 'image/png');

@@ -104,6 +104,7 @@ export interface PublicCardSqlRow {
   qr_y: string | number;
   qr_width: string | number;
   qr_height: string | number;
+  qr_style?: string | null;
 }
 
 export interface PublicDocumentSqlRow {

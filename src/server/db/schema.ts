@@ -78,6 +78,7 @@ export const labels = pgTable(
     positionY: numeric('position_y', { precision: 6, scale: 2 }).notNull(),
     width: numeric('width', { precision: 6, scale: 2 }).notNull(),
     height: numeric('height', { precision: 6, scale: 2 }).notNull(),
+    qrStyle: varchar('qr_style', { length: 40 }).default('fluid').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

@@ -5,6 +5,7 @@ import multer from 'multer';
 import { getDb } from '../db/index.ts';
 import { labels, ownerDocuments, owners, templates } from '../db/schema.ts';
 import { validateLabelGeometry } from '../../lib/qr-geometry.ts';
+import { normalizeQrStyle } from '../../lib/qr-styled.ts';
 import { requireAdmin } from '../middleware/auth.middleware.ts';
 import {
   documentVisibilitySchema,
@@ -173,6 +174,7 @@ ownersRouter.get('/:id', async (req, res, next) => {
         positionY: labels.positionY,
         width: labels.width,
         height: labels.height,
+        qrStyle: labels.qrStyle,
         createdAt: labels.createdAt,
         updatedAt: labels.updatedAt,
         templateName: templates.name,
@@ -224,6 +226,7 @@ ownersRouter.get('/:id', async (req, res, next) => {
             y: Number(label.positionY),
             width: Number(label.width),
             height: Number(label.height),
+            qrStyle: normalizeQrStyle(label.qrStyle),
             createdAt: toIso(label.createdAt),
             updatedAt: toIso(label.updatedAt),
           }
@@ -396,6 +399,7 @@ ownersRouter.post('/', upload.array('documents', MAX_DOCUMENTS_PER_OWNER), async
         positionY: labelParsed.data.y.toFixed(2),
         width: labelParsed.data.width.toFixed(2),
         height: labelParsed.data.height.toFixed(2),
+        qrStyle: labelParsed.data.qrStyle,
         createdAt: now,
         updatedAt: now,
       });
@@ -440,6 +444,7 @@ ownersRouter.post('/', upload.array('documents', MAX_DOCUMENTS_PER_OWNER), async
         y: labelParsed.data.y,
         width: labelParsed.data.width,
         height: labelParsed.data.height,
+        qrStyle: labelParsed.data.qrStyle,
       },
       documentCount: preparedDocs.length,
     });

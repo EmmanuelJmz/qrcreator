@@ -1,14 +1,18 @@
 import sharp from 'sharp';
-import { renderStyledQrSvg } from '../../lib/qr-styled.ts';
+import { renderStyledQrSvg, type QrStyle } from '../../lib/qr-styled.ts';
 import { getStorageProvider } from './storage/index.ts';
 
-export async function generateQrSvg(publicUrl: string): Promise<string> {
-  return renderStyledQrSvg(publicUrl);
+export async function generateQrSvg(publicUrl: string, style: QrStyle = 'fluid'): Promise<string> {
+  return renderStyledQrSvg(publicUrl, { style });
 }
 
-export async function generateQrPngBuffer(publicUrl: string, sizePx: number): Promise<Buffer> {
+export async function generateQrPngBuffer(
+  publicUrl: string,
+  sizePx: number,
+  style: QrStyle = 'fluid',
+): Promise<Buffer> {
   const safeSize = Math.max(32, Math.round(sizePx));
-  const svg = renderStyledQrSvg(publicUrl, { pixelSize: safeSize });
+  const svg = renderStyledQrSvg(publicUrl, { style, pixelSize: safeSize });
   return sharp(Buffer.from(svg), { density: 300 })
     .resize(safeSize, safeSize)
     .png()
@@ -23,6 +27,7 @@ export interface ComposeLabelParams {
   positionY: number;
   widthPct: number;
   publicUrl: string;
+  qrStyle?: QrStyle;
 }
 
 export async function composeFinalLabelPng(params: ComposeLabelParams): Promise<Buffer> {
@@ -41,7 +46,11 @@ export async function composeFinalLabelPng(params: ComposeLabelParams): Promise<
   leftPx = Math.max(0, Math.min(leftPx, params.templateWidth - qrSizePx));
   topPx = Math.max(0, Math.min(topPx, params.templateHeight - qrSizePx));
 
-  const qrPngBuffer = await generateQrPngBuffer(params.publicUrl, qrSizePx);
+  const qrPngBuffer = await generateQrPngBuffer(
+    params.publicUrl,
+    qrSizePx,
+    params.qrStyle ?? 'fluid',
+  );
 
   return sharp(templateBuffer)
     .composite([
