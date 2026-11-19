@@ -9,9 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/src/components/ui/dialog';
+import { PublicDocVisibilityControl } from '@/src/components/public-doc-visibility-control';
 import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
-import { Switch } from '@/src/components/ui/switch';
 import {
   apiClient,
   ApiError,
@@ -327,53 +327,49 @@ export function OwnerEditDialog({ ownerId, onClose, onSaved }: OwnerEditDialogPr
                 ) : (
                   <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
                     {documents.map((doc) => (
-                      <div key={doc.id} className="p-3 flex items-center gap-3">
-                        <ProtectedImage
-                          src={`/api/v1/documents/${doc.id}/preview`}
-                          alt={doc.originalName}
-                          className="h-12 w-12 rounded object-cover border border-slate-200 shrink-0"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-slate-900 truncate">
-                            {doc.originalName}
-                          </p>
-                          <p className="text-xs text-slate-500 font-mono tabular-nums">
-                            {formatFileSize(doc.fileSize)} · {formatDateShort(doc.createdAt)}
-                          </p>
+                      <div key={doc.id} className="p-3.5 space-y-2.5">
+                        <div className="flex items-center gap-3">
+                          <ProtectedImage
+                            src={`/api/v1/documents/${doc.id}/preview`}
+                            alt={doc.originalName}
+                            className="h-12 w-12 rounded object-cover border border-slate-200 shrink-0"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-slate-900 truncate">
+                              {doc.originalName}
+                            </p>
+                            <p className="text-xs text-slate-500 font-mono tabular-nums">
+                              {formatFileSize(doc.fileSize)} · {formatDateShort(doc.createdAt)}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewDoc(doc)}
+                              aria-label={`Visualizar ${doc.originalName}`}
+                              className="h-9 w-9 inline-flex items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 cursor-pointer"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteDoc(doc)}
+                              aria-label={`Eliminar ${doc.originalName}`}
+                              className="h-9 w-9 inline-flex items-center justify-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span
-                            className={`text-xs font-medium ${
-                              doc.isPublic ? 'text-emerald-700' : 'text-slate-600'
-                            }`}
-                          >
-                            {doc.isPublic ? 'Público' : 'Privado'}
-                          </span>
-                          <Switch
-                            checked={doc.isPublic}
-                            onCheckedChange={(checked) =>
-                              void handleToggleVisibility(doc, checked)
-                            }
-                            aria-label={`Visibilidad de ${doc.originalName}`}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setPreviewDoc(doc)}
-                            aria-label={`Visualizar ${doc.originalName}`}
-                            className="h-8 w-8 inline-flex items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 cursor-pointer"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleDeleteDoc(doc)}
-                            aria-label={`Eliminar ${doc.originalName}`}
-                            className="h-8 w-8 inline-flex items-center justify-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600 cursor-pointer"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
+                        <PublicDocVisibilityControl
+                          documentName={doc.originalName}
+                          isPublic={doc.isPublic}
+                          onConfirmChange={(checked) =>
+                            handleToggleVisibility(doc, checked)
+                          }
+                        />
                       </div>
                     ))}
                   </div>

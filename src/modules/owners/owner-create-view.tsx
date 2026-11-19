@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import QRCode from 'qrcode';
 import { ArrowLeft, Plus, Save, Trash2, Upload } from 'lucide-react';
 import { QRLabelCanvas } from '@/src/components/qr-label-canvas';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
+import { PublicDocVisibilityControl } from '@/src/components/public-doc-visibility-control';
 import {
   Select,
   SelectContent,
@@ -12,13 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/src/components/ui/select';
-import { Switch } from '@/src/components/ui/switch';
 import { apiClient, ApiError, type TemplateItem } from '@/src/lib/api-client';
 import {
   clampSquareLabelGeometry,
   defaultSquareLabelGeometry,
   type LabelGeometry,
 } from '@/src/lib/qr-geometry';
+import { renderStyledQrSvg } from '@/src/lib/qr-styled';
 import {
   EMAIL_REGEX,
   formatFileSize,
@@ -65,12 +65,7 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
       try {
         const [tplRes, svg] = await Promise.all([
           apiClient.listTemplates(),
-          QRCode.toString('https://cascoqr.app/ficha/vista-previa', {
-            type: 'svg',
-            margin: 1,
-            errorCorrectionLevel: 'M',
-            color: { dark: '#0F172A', light: '#FFFFFF' },
-          }),
+          Promise.resolve(renderStyledQrSvg('https://cascoqr.app/ficha/vista-previa')),
         ]);
         if (cancelled) return;
         setTemplates(tplRes.templates);
@@ -408,45 +403,39 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
             ) : (
               <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
                 {draftDocs.map((doc) => (
-                  <div key={doc.id} className="p-3 flex items-center gap-3">
-                    <img
-                      src={doc.previewUrl}
-                      alt={doc.file.name}
-                      className="h-12 w-12 rounded object-cover border border-slate-200 shrink-0"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-slate-900 truncate">
-                        {doc.file.name}
-                      </p>
-                      <p className="text-xs text-slate-500 font-mono tabular-nums">
-                        {formatFileSize(doc.file.size)}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span
-                        className={`text-xs font-medium ${
-                          doc.isPublic ? 'text-emerald-700' : 'text-slate-600'
-                        }`}
-                      >
-                        {doc.isPublic ? 'Público' : 'Privado'}
-                      </span>
-                      <Switch
-                        checked={doc.isPublic}
-                        onCheckedChange={(checked) =>
-                          handleToggleDraftVisibility(doc.id, checked)
-                        }
-                        aria-label={`Visibilidad de ${doc.file.name}`}
+                  <div key={doc.id} className="p-3.5 space-y-2.5">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={doc.previewUrl}
+                        alt={doc.file.name}
+                        className="h-12 w-12 rounded object-cover border border-slate-200 shrink-0"
                       />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-slate-900 truncate">
+                          {doc.file.name}
+                        </p>
+                        <p className="text-xs text-slate-500 font-mono tabular-nums">
+                          {formatFileSize(doc.file.size)}
+                        </p>
+                      </div>
+
                       <button
                         type="button"
                         onClick={() => handleRemoveDraftDoc(doc.id)}
                         aria-label={`Quitar ${doc.file.name}`}
-                        className="h-8 w-8 inline-flex items-center justify-center rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                        className="h-9 w-9 inline-flex items-center justify-center rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer shrink-0"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
+
+                    <PublicDocVisibilityControl
+                      documentName={doc.file.name}
+                      isPublic={doc.isPublic}
+                      onConfirmChange={(checked) =>
+                        handleToggleDraftVisibility(doc.id, checked)
+                      }
+                    />
                   </div>
                 ))}
               </div>

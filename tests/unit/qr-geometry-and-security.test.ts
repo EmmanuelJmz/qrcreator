@@ -1,10 +1,13 @@
+import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import {
   clampSquareLabelGeometry,
   computeSquareHeightPct,
   validateLabelGeometry,
 } from '@/src/lib/qr-geometry';
+import { renderStyledQrSvg } from '@/src/lib/qr-styled';
 import { ownerInfoSchema } from '@/src/server/schemas';
+import { generateQrPngBuffer } from '@/src/server/services/label-render.service';
 import {
   createAdminSessionToken,
   SessionSecretNotConfiguredError,
@@ -156,5 +159,19 @@ describe('Seguridad criptográfica de tokens y firma binaria de archivos', () =>
         phone: 'abc-tel',
       }).success,
     ).toBe(false);
+  });
+
+  it('genera QR estilizado fluido (#0F172A con ojos naranja #DC4C0D) en SVG y PNG cuadrado', async () => {
+    const svg = renderStyledQrSvg('https://cascoqr.app/ficha/ejemplo-token-123');
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('fill="#0F172A"');
+    expect(svg).toContain('fill="#DC4C0D"');
+    expect(svg).toContain('<path d="M');
+
+    const png = await generateQrPngBuffer('https://cascoqr.app/ficha/ejemplo-token-123', 240);
+    const meta = await sharp(png).metadata();
+    expect(meta.format).toBe('png');
+    expect(meta.width).toBe(240);
+    expect(meta.height).toBe(240);
   });
 });

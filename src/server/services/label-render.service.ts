@@ -1,31 +1,18 @@
-import QRCode from 'qrcode';
 import sharp from 'sharp';
+import { renderStyledQrSvg } from '../../lib/qr-styled.ts';
 import { getStorageProvider } from './storage/index.ts';
 
 export async function generateQrSvg(publicUrl: string): Promise<string> {
-  return QRCode.toString(publicUrl, {
-    type: 'svg',
-    margin: 1,
-    errorCorrectionLevel: 'M',
-    color: {
-      dark: '#0F172A',
-      light: '#FFFFFF',
-    },
-  });
+  return renderStyledQrSvg(publicUrl);
 }
 
 export async function generateQrPngBuffer(publicUrl: string, sizePx: number): Promise<Buffer> {
   const safeSize = Math.max(32, Math.round(sizePx));
-  return QRCode.toBuffer(publicUrl, {
-    type: 'png',
-    width: safeSize,
-    margin: 1,
-    errorCorrectionLevel: 'M',
-    color: {
-      dark: '#0F172A',
-      light: '#FFFFFF',
-    },
-  });
+  const svg = renderStyledQrSvg(publicUrl, { pixelSize: safeSize });
+  return sharp(Buffer.from(svg), { density: 300 })
+    .resize(safeSize, safeSize)
+    .png()
+    .toBuffer();
 }
 
 export interface ComposeLabelParams {
