@@ -177,7 +177,7 @@ export function OwnersModule({
             </p>
             <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums">
               {stats.totalOwners > 0
-                ? `${Math.round((stats.activeOwners / stats.totalOwners) * 100)}% del padrón`
+                ? `${Math.round((stats.activeOwners / stats.totalOwners) * 100)}% del total`
                 : 'Sin registros aún'}
             </p>
           </button>

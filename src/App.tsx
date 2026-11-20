@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AdminLayout, type AdminModule } from '@/src/components/admin-layout';
 import { apiClient, type AdminUser, type AuthConfig } from '@/src/lib/api-client';
 import { LoginPage } from '@/src/modules/auth/login-page';
@@ -7,6 +7,13 @@ import { OwnersModule } from '@/src/modules/owners/owners-module';
 import { PublicCardPage } from '@/src/modules/public-card/public-card-page';
 import { PublicLookupAdmin } from '@/src/modules/public-card/public-lookup-admin';
 import { TemplatesModule } from '@/src/modules/templates/templates-module';
+
+const MODULE_LABELS: Record<AdminModule, string> = {
+  owners: 'Propietarios',
+  templates: 'Plantillas',
+  editor: 'Editor de etiquetas QR',
+  public: 'Ficha pública',
+};
 
 function extractPublicTokenFromLocation(): string | null {
   const pathMatch = window.location.pathname.match(/^\/ficha\/([^/]+)$/);
@@ -33,13 +40,47 @@ export default function App() {
     storageConfigured: false,
   });
   const [checkingAuth, setCheckingAuth] = useState<boolean>(() => !standalonePublicToken);
-  const [activeModule, setActiveModule] = useState<AdminModule>('owners');
+  const [navStack, setNavStack] = useState<AdminModule[]>(['owners']);
+  const navStackRef = useRef<AdminModule[]>(['owners']);
+  const pushedDepthRef = useRef(0);
+  const ignoreNextPopRef = useRef(false);
   const [editorOwnerId, setEditorOwnerId] = useState<string | null>(null);
   const [lookupToken, setLookupToken] = useState<string | null>(null);
 
+  const activeModule = navStack[navStack.length - 1] ?? 'owners';
+
   useEffect(() => {
-    const onPopState = () => {
+    navStackRef.current = navStack;
+  }, [navStack]);
+
+  useEffect(() => {
+    if (!standalonePublicToken && !window.history.state?.cascoqrAdmin) {
+      window.history.replaceState(
+        { cascoqrAdmin: true, stack: ['owners'], depth: 0 },
+        '',
+      );
+    }
+  }, [standalonePublicToken]);
+
+  useEffect(() => {
+    const onPopState = (event: PopStateEvent) => {
       setStandalonePublicToken(extractPublicTokenFromLocation());
+
+      if (ignoreNextPopRef.current) {
+        ignoreNextPopRef.current = false;
+        return;
+      }
+
+      const state = event.state as
+        | { cascoqrAdmin?: boolean; stack?: AdminModule[]; depth?: number }
+        | null;
+      if (state?.cascoqrAdmin && Array.isArray(state.stack) && state.stack.length > 0) {
+        pushedDepthRef.current = typeof state.depth === 'number' ? state.depth : 0;
+        setNavStack(state.stack);
+      } else if (!extractPublicTokenFromLocation() && navStackRef.current.length > 1) {
+        pushedDepthRef.current = Math.max(0, pushedDepthRef.current - 1);
+        setNavStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
+      }
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
@@ -78,6 +119,40 @@ export default function App() {
     };
   }, [standalonePublicToken]);
 
+  const navigateToModule = useCallback((nextModule: AdminModule) => {
+    const currentStack = navStackRef.current;
+    const current = currentStack[currentStack.length - 1] ?? 'owners';
+    if (nextModule === current) return;
+
+    const nextStack = [...currentStack.slice(-19), nextModule];
+    pushedDepthRef.current += 1;
+    setNavStack(nextStack);
+    window.history.pushState(
+      { cascoqrAdmin: true, stack: nextStack, depth: pushedDepthRef.current },
+      '',
+    );
+  }, []);
+
+  const handleGoBack = useCallback(() => {
+    const currentStack = navStackRef.current;
+    if (currentStack.length > 1) {
+      setNavStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
+      if (pushedDepthRef.current > 0) {
+        pushedDepthRef.current -= 1;
+        ignoreNextPopRef.current = true;
+        window.history.back();
+        window.setTimeout(() => {
+          ignoreNextPopRef.current = false;
+        }, 120);
+      }
+      return;
+    }
+
+    if (activeModule !== 'owners') {
+      setNavStack(['owners']);
+    }
+  }, [activeModule]);
+
   if (standalonePublicToken) {
     return <PublicCardPage token={standalonePublicToken} />;
   }
@@ -103,18 +178,19 @@ export default function App() {
     try {
       await apiClient.logout();
     } finally {
+      setNavStack(['owners']);
       setAdmin(null);
     }
   };
 
   const handleOpenEditorForOwner = (ownerId: string) => {
     setEditorOwnerId(ownerId);
-    setActiveModule('editor');
+    navigateToModule('editor');
   };
 
   const handleOpenPublicCardForToken = (token: string) => {
     setLookupToken(token);
-    setActiveModule('public');
+    navigateToModule('public');
   };
 
   const handleNavigateStandalonePublic = (token: string) => {
@@ -123,10 +199,17 @@ export default function App() {
     setStandalonePublicToken(token);
   };
 
+  const canGoBack = navStack.length > 1 || activeModule !== 'owners';
+  const previousModule =
+    navStack.length > 1 ? navStack[navStack.length - 2] : activeModule !== 'owners' ? 'owners' : undefined;
+
   return (
     <AdminLayout
       activeModule={activeModule}
-      onSelectModule={setActiveModule}
+      onSelectModule={navigateToModule}
+      canGoBack={canGoBack}
+      previousModuleLabel={previousModule ? MODULE_LABELS[previousModule] : undefined}
+      onGoBack={handleGoBack}
       admin={admin}
       onLogout={() => void handleLogout()}
     >
@@ -134,7 +217,7 @@ export default function App() {
         <OwnersModule
           onOpenEditorForOwner={handleOpenEditorForOwner}
           onOpenPublicCardForToken={handleOpenPublicCardForToken}
-          onOpenTemplates={() => setActiveModule('templates')}
+          onOpenTemplates={() => navigateToModule('templates')}
         />
       )}
       {activeModule === 'templates' && <TemplatesModule />}

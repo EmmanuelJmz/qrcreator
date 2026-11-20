@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ArrowLeft,
   Eye,
   FileImage,
   LogOut,
@@ -17,6 +18,9 @@ export type AdminModule = 'owners' | 'templates' | 'editor' | 'public';
 interface AdminLayoutProps {
   activeModule: AdminModule;
   onSelectModule: (module: AdminModule) => void;
+  canGoBack?: boolean;
+  previousModuleLabel?: string;
+  onGoBack?: () => void;
   admin: AdminUser;
   onLogout: () => void;
   children: React.ReactNode;
@@ -36,6 +40,9 @@ const NAV_ITEMS: Array<{
 export function AdminLayout({
   activeModule,
   onSelectModule,
+  canGoBack = false,
+  previousModuleLabel,
+  onGoBack,
   admin,
   onLogout,
   children,
@@ -160,15 +167,29 @@ export function AdminLayout({
       {/* Main Content */}
       <div className="flex-1 min-w-0 flex flex-col">
         <header className="h-16 px-4 sm:px-8 bg-white border-b border-slate-200 flex items-center justify-between gap-4 shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <button
               type="button"
               aria-label="Abrir navegación"
               onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden h-10 w-10 flex items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
+              className="lg:hidden h-10 w-10 flex items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 shrink-0 cursor-pointer"
             >
               <Menu className="h-5 w-5" />
             </button>
+            {canGoBack && onGoBack && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onGoBack}
+                title={previousModuleLabel ? `Volver a ${previousModuleLabel}` : 'Volver'}
+                aria-label={previousModuleLabel ? `Volver a ${previousModuleLabel}` : 'Volver'}
+                className="h-10 px-3 whitespace-nowrap shrink-0"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Volver</span>
+              </Button>
+            )}
             <h1 className="text-lg font-semibold text-slate-900 truncate">
               {activeTitle}
             </h1>
