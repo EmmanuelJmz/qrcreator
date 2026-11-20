@@ -162,9 +162,10 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
     expect(meByBearer.status).toBe(200);
   });
 
-  it('consulta ficha pública exclusivamente a través de funciones SECURITY DEFINER por hash SHA-256', async () => {
+  it('consulta ficha pública exclusivamente a través de funciones SECURITY DEFINER por hash SHA-256 y registra escaneos sin duplicar', async () => {
     const validToken = 'Tok3nPubl1c0Val1d0_1234567890abcd';
     const expectedHash = hashPublicToken(validToken);
+    let recordedScans = 0;
 
     setPublicQueryExecutorForTests({
       async getCardByHash(hash) {
@@ -198,10 +199,16 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
       async getDocumentFile() {
         return null;
       },
+      async recordScanByHash(hash) {
+        if (hash === expectedHash) {
+          recordedScans += 1;
+        }
+      },
     });
 
     const pubOk = await request(app).get(`/api/v1/public/${validToken}`);
     expect(pubOk.status).toBe(200);
+    expect(recordedScans).toBe(1);
     expect(pubOk.body.card).toEqual({
       fullName: 'Carlos Mendoza',
       email: 'carlos@moto.mx',
@@ -217,6 +224,11 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
 
     const pubMissing = await request(app).get('/api/v1/public/OtroTokenNoVigente_1234567890abcd');
     expect(pubMissing.status).toBe(404);
+    expect(recordedScans).toBe(1);
+
+    // Requesting sub-resources does not double-count scans
+    await request(app).get(`/api/v1/public/${validToken}/label-image`);
+    expect(recordedScans).toBe(1);
   });
 
   it('valida magic bytes de archivos, UUIDs, tamaño mínimo 5% y devuelve 503 si faltan llaves R2', async () => {
@@ -287,6 +299,7 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
                 totalOwners: 5,
                 activeOwners: 4,
                 inactiveOwners: 1,
+                totalScans: 19,
                 totalLabels: 5,
                 totalTemplates: 2,
                 totalDocuments: 7,
@@ -322,9 +335,37 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
       totalOwners: 5,
       activeOwners: 4,
       inactiveOwners: 1,
+      totalScans: 19,
       totalLabels: 5,
       totalTemplates: 2,
       totalDocuments: 7,
     });
+  });
+
+  it('valida parámetros de POST /api/v1/labels/print-sheet', async () => {
+    process.env.ADMIN_USERNAME = 'admin';
+    process.env.ADMIN_PASSWORD = 'SecretPassword123!';
+    process.env.SESSION_SECRET = 'test-session-secret-0123456789abcdef';
+
+    const loginRes = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ username: 'admin', password: 'SecretPassword123!' });
+    const token = loginRes.body.sessionToken as string;
+
+    const emptyRes = await request(app)
+      .post('/api/v1/labels/print-sheet')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ownerIds: [], paperSize: 'letter', columns: 3 });
+    expect(emptyRes.status).toBe(400);
+
+    const tooManyIds = Array.from(
+      { length: 21 },
+      (_, idx) => `550e8400-e29b-41d4-a716-4466554400${String(idx).padStart(2, '0')}`,
+    );
+    const tooManyRes = await request(app)
+      .post('/api/v1/labels/print-sheet')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ownerIds: tooManyIds, paperSize: 'tabloid', columns: 4 });
+    expect(tooManyRes.status).toBe(400);
   });
 });

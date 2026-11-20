@@ -6,8 +6,11 @@ import {
   validateLabelGeometry,
 } from '@/src/lib/qr-geometry';
 import { QR_STYLE_IDS, renderStyledQrSvg } from '@/src/lib/qr-styled';
-import { labelConfigSchema, ownerInfoSchema } from '@/src/server/schemas';
-import { generateQrPngBuffer } from '@/src/server/services/label-render.service';
+import { labelConfigSchema, ownerInfoSchema, printSheetSchema } from '@/src/server/schemas';
+import {
+  composePrintSheetPng,
+  generateQrPngBuffer,
+} from '@/src/server/services/label-render.service';
 import {
   createAdminSessionToken,
   SessionSecretNotConfiguredError,
@@ -213,5 +216,102 @@ describe('Seguridad criptográfica de tokens y firma binaria de archivos', () =>
     }
 
     expect(labelConfigSchema.safeParse({ ...base, qrStyle: 'invalid-style' }).success).toBe(false);
+  });
+
+  it('valida printSheetSchema (1..20 etiquetas y 2..4 columnas) y genera hojas Carta y Tabloide en PNG', async () => {
+    const sampleId = '550e8400-e29b-41d4-a716-446655440000';
+    expect(
+      printSheetSchema.safeParse({
+        ownerIds: [sampleId],
+        paperSize: 'letter',
+        columns: 3,
+        cutGuides: true,
+        gapSize: 'normal',
+      }).success,
+    ).toBe(true);
+
+    expect(
+      printSheetSchema.safeParse({
+        ownerIds: [],
+        paperSize: 'letter',
+        columns: 3,
+      }).success,
+    ).toBe(false);
+
+    expect(
+      printSheetSchema.safeParse({
+        ownerIds: Array.from({ length: 21 }, (_, idx) => `550e8400-e29b-41d4-a716-4466554400${String(idx).padStart(2, '0')}`),
+        paperSize: 'tabloid',
+        columns: 4,
+      }).success,
+    ).toBe(false);
+
+    expect(
+      printSheetSchema.safeParse({
+        ownerIds: [sampleId],
+        paperSize: 'letter',
+        columns: 5,
+      }).success,
+    ).toBe(false);
+
+    const templateBuffer = await sharp({
+      create: {
+        width: 400,
+        height: 240,
+        channels: 3,
+        background: { r: 255, g: 255, b: 255 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    const items = [
+      {
+        ownerId: sampleId,
+        templateStorageKey: 'templates/test.png',
+        templateWidth: 400,
+        templateHeight: 240,
+        positionX: 10,
+        positionY: 10,
+        widthPct: 25,
+        publicUrl: 'https://cascoqr.app/ficha/demo-1',
+        qrStyle: 'classic' as const,
+        cachedTemplateBuffer: templateBuffer,
+      },
+      {
+        ownerId: '550e8400-e29b-41d4-a716-446655440001',
+        templateStorageKey: 'templates/test.png',
+        templateWidth: 400,
+        templateHeight: 240,
+        positionX: 10,
+        positionY: 10,
+        widthPct: 25,
+        publicUrl: 'https://cascoqr.app/ficha/demo-2',
+        qrStyle: 'fluid' as const,
+        cachedTemplateBuffer: templateBuffer,
+      },
+    ];
+
+    const letterSheet = await composePrintSheetPng(items, {
+      paperSize: 'letter',
+      columns: 2,
+      cutGuides: true,
+      gapSize: 'normal',
+    });
+    const letterMeta = await sharp(letterSheet).metadata();
+    expect(letterMeta.format).toBe('png');
+    expect(letterMeta.width).toBe(1275);
+    expect(letterMeta.height).toBe(1650);
+
+    const tabloidSheet = await composePrintSheetPng(items, {
+      paperSize: 'tabloid',
+      columns: 3,
+      cutGuides: false,
+      gapSize: 'compact',
+    });
+    const tabloidMeta = await sharp(tabloidSheet).metadata();
+    expect(tabloidMeta.format).toBe('png');
+    expect(tabloidMeta.width).toBe(1650);
+    expect(tabloidMeta.height).toBe(2550);
   });
 });

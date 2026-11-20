@@ -1,16 +1,18 @@
 import crypto from 'crypto';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { Router } from 'express';
 import { getDb } from '../db/index.ts';
 import { labels, owners, templates } from '../db/schema.ts';
 import { validateLabelGeometry } from '../../lib/qr-geometry.ts';
 import { normalizeQrStyle } from '../../lib/qr-styled.ts';
 import { requireAdmin } from '../middleware/auth.middleware.ts';
-import { labelConfigSchema, uuidParamSchema } from '../schemas/index.ts';
+import { labelConfigSchema, printSheetSchema, uuidParamSchema } from '../schemas/index.ts';
 import {
   composeFinalLabelPng,
+  composePrintSheetPng,
   generateQrSvg,
 } from '../services/label-render.service.ts';
+import { getStorageProvider } from '../services/storage/index.ts';
 import {
   buildPublicCardUrl,
   decryptPublicToken,
@@ -380,6 +382,102 @@ labelsRouter.post('/owners/:id/label/render', requireAdmin, async (req, res, nex
     res.setHeader('Content-Disposition', `attachment; filename="etiqueta-${safeSlug}.png"`);
     res.setHeader('Cache-Control', 'private, no-store');
     res.send(pngBuffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
+labelsRouter.post('/labels/print-sheet', requireAdmin, async (req, res, next) => {
+  try {
+    const parsed = printSheetSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        error: parsed.error.issues[0]?.message || 'Parámetros inválidos para la hoja de impresión.',
+      });
+      return;
+    }
+
+    const uniqueOwnerIds = Array.from(new Set(parsed.data.ownerIds));
+    const db = getDb();
+
+    const rows = await db
+      .select({
+        ownerId: owners.id,
+        firstName: owners.firstName,
+        lastName: owners.lastName,
+        status: owners.status,
+        encryptedPublicToken: owners.encryptedPublicToken,
+        positionX: labels.positionX,
+        positionY: labels.positionY,
+        width: labels.width,
+        qrStyle: labels.qrStyle,
+        templateStorageKey: templates.storageKey,
+        templateWidth: templates.width,
+        templateHeight: templates.height,
+      })
+      .from(owners)
+      .innerJoin(labels, eq(labels.ownerId, owners.id))
+      .innerJoin(templates, eq(templates.id, labels.templateId))
+      .where(inArray(owners.id, uniqueOwnerIds));
+
+    const rowMap = new Map(rows.map((r) => [r.ownerId, r]));
+    const orderedRows = uniqueOwnerIds
+      .map((id) => rowMap.get(id))
+      .filter((r): r is NonNullable<typeof r> => Boolean(r));
+
+    if (orderedRows.length === 0) {
+      res.status(404).json({ error: 'Ninguno de los propietarios seleccionados tiene etiqueta configurada.' });
+      return;
+    }
+
+    const eligibleRows = orderedRows.filter((r) => r.status && r.encryptedPublicToken);
+    if (eligibleRows.length === 0) {
+      res.status(409).json({
+        error: 'Los propietarios seleccionados están inactivos o no tienen código QR vigente.',
+      });
+      return;
+    }
+
+    const storage = getStorageProvider();
+    const uniqueTemplateKeys = Array.from(new Set(eligibleRows.map((r) => r.templateStorageKey)));
+    const templateCache = new Map<string, Buffer>();
+    await Promise.all(
+      uniqueTemplateKeys.map(async (key) => {
+        templateCache.set(key, await storage.getObject(key));
+      }),
+    );
+
+    const origin = getRequestOrigin(req);
+    const items = eligibleRows.map((row) => {
+      const token = decryptPublicToken(row.encryptedPublicToken!);
+      return {
+        ownerId: row.ownerId,
+        templateStorageKey: row.templateStorageKey,
+        templateWidth: row.templateWidth,
+        templateHeight: row.templateHeight,
+        positionX: Number(row.positionX),
+        positionY: Number(row.positionY),
+        widthPct: Number(row.width),
+        publicUrl: buildPublicCardUrl(token, origin),
+        qrStyle: normalizeQrStyle(row.qrStyle),
+        cachedTemplateBuffer: templateCache.get(row.templateStorageKey),
+      };
+    });
+
+    const sheetPng = await composePrintSheetPng(items, {
+      paperSize: parsed.data.paperSize,
+      columns: parsed.data.columns,
+      cutGuides: parsed.data.cutGuides,
+      gapSize: parsed.data.gapSize,
+    });
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="hoja-etiquetas-${parsed.data.paperSize}.png"`,
+    );
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(sheetPng);
   } catch (err) {
     next(err);
   }

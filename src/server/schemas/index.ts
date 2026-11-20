@@ -96,6 +96,17 @@ export const templateCreateSchema = z.object({
     .max(255, 'El nombre no puede exceder 255 caracteres.'),
 });
 
+export const printSheetSchema = z.object({
+  ownerIds: z
+    .array(z.string().uuid('Identificador de propietario inválido.'))
+    .min(1, 'Selecciona al menos un propietario para armar la hoja.')
+    .max(20, 'Puedes incluir hasta 20 etiquetas por hoja.'),
+  paperSize: z.enum(['letter', 'tabloid']).default('letter'),
+  columns: z.coerce.number().int().min(2).max(4).default(3),
+  cutGuides: z.boolean().default(true),
+  gapSize: z.enum(['compact', 'normal']).default('normal'),
+});
+
 export const uuidParamSchema = z.string().uuid('Identificador inválido.');
 export const publicTokenParamSchema = z
   .string()

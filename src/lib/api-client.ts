@@ -51,6 +51,7 @@ export interface OwnerDashboardStats {
   totalOwners: number;
   activeOwners: number;
   inactiveOwners: number;
+  totalScans?: number;
   totalLabels: number;
   totalTemplates: number;
   totalDocuments: number;
@@ -71,6 +72,8 @@ export interface OwnerSummary {
   templateId: string | null;
   templateName: string | null;
   tokenVersion: number;
+  scanCount: number;
+  lastScannedAt: string | null;
   publicToken: string | null;
   publicUrl: string | null;
   createdAt: string;
@@ -87,6 +90,8 @@ export interface OwnerDetailResponse {
     phone: string | null;
     status: boolean;
     tokenVersion: number;
+    scanCount: number;
+    lastScannedAt: string | null;
     publicToken: string | null;
     publicUrl: string | null;
     createdAt: string;
@@ -293,6 +298,35 @@ export const apiClient = {
     });
     if (!res.ok) {
       let message = 'No se pudo generar la imagen de la etiqueta.';
+      try {
+        const data = await res.json();
+        if (data?.error) message = data.error;
+      } catch {
+        // Ignore
+      }
+      throw new ApiError(message, res.status);
+    }
+    return res.blob();
+  },
+
+  generatePrintSheet: async (payload: {
+    ownerIds: string[];
+    paperSize: 'letter' | 'tabloid';
+    columns: number;
+    cutGuides: boolean;
+    gapSize: 'compact' | 'normal';
+  }): Promise<Blob> => {
+    const res = await fetch('/api/v1/labels/print-sheet', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      let message = 'No se pudo generar la hoja de impresión.';
       try {
         const data = await res.json();
         if (data?.error) message = data.error;

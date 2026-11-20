@@ -25,6 +25,8 @@ export const owners = pgTable(
     publicTokenHash: char('public_token_hash', { length: 64 }).unique(),
     encryptedPublicToken: text('encrypted_public_token'),
     tokenVersion: integer('token_version').default(1).notNull(),
+    scanCount: integer('scan_count').default(0).notNull(),
+    lastScannedAt: timestamp('last_scanned_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

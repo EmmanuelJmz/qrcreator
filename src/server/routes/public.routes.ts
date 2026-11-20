@@ -37,6 +37,11 @@ publicRouter.get('/:token', async (req, res, next) => {
     }
 
     const docs = await publicDb.getDocumentsByHash(tokenHash);
+    try {
+      await publicDb.recordScanByHash?.(tokenHash);
+    } catch {
+      // Ignore gracefully if public_record_scan SQL migration has not been applied yet
+    }
 
     res.setHeader('Cache-Control', 'no-store');
     res.json({

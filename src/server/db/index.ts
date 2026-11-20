@@ -122,6 +122,7 @@ export interface PublicQueryExecutor {
   getCardByHash(tokenHash: string): Promise<PublicCardSqlRow | null>;
   getDocumentsByHash(tokenHash: string): Promise<PublicDocumentSqlRow[]>;
   getDocumentFile(tokenHash: string, docId: string): Promise<PublicDocumentFileSqlRow | null>;
+  recordScanByHash?(tokenHash: string): Promise<void>;
 }
 
 let customPublicExecutorForTests: PublicQueryExecutor | null = null;
@@ -157,6 +158,10 @@ export function getPublicQueryExecutor(): PublicQueryExecutor {
         [tokenHash, docId],
       );
       return result.rows[0] ?? null;
+    },
+    async recordScanByHash(tokenHash: string) {
+      const pool = getPublicPool();
+      await pool.query('SELECT public_record_scan($1::char(64))', [tokenHash]);
     },
   };
 }
