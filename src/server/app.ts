@@ -1,6 +1,7 @@
 import express from 'express';
 import { errorHandler } from './middleware/auth.middleware.ts';
 import { authRouter } from './routes/auth.routes.ts';
+import { cardThemeRouter } from './routes/card-theme.routes.ts';
 import { labelsRouter } from './routes/labels.routes.ts';
 import { documentsAdminRouter, ownersRouter } from './routes/owners.routes.ts';
 import { publicRouter } from './routes/public.routes.ts';
@@ -16,6 +17,7 @@ export function createApiApp() {
 
   app.use('/api/v1/public', publicRouter);
   app.use('/api/v1/auth', authRouter);
+  app.use('/api/v1/card-theme', cardThemeRouter);
   app.use('/api/v1/templates', templatesRouter);
   app.use('/api/v1/owners', ownersRouter);
   app.use('/api/v1/documents', documentsAdminRouter);

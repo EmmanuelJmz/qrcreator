@@ -1,3 +1,7 @@
+import type {
+  OwnerCardThemeOverride,
+  PublicCardTheme,
+} from '@/src/lib/public-card-theme';
 import type { QrStyle } from '@/src/lib/qr-styled';
 
 export interface AdminUser {
@@ -92,6 +96,7 @@ export interface OwnerDetailResponse {
     tokenVersion: number;
     scanCount: number;
     lastScannedAt: string | null;
+    cardThemeOverride?: OwnerCardThemeOverride | null;
     publicToken: string | null;
     publicUrl: string | null;
     createdAt: string;
@@ -207,7 +212,13 @@ export const apiClient = {
     }),
   updateOwner: (
     id: string,
-    payload: { firstName: string; lastName: string; email: string; phone: string },
+    payload: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      phone: string;
+      cardThemeOverride?: OwnerCardThemeOverride | null;
+    },
   ) =>
     requestJson<{ owner: OwnerDetailResponse['owner'] }>(`/api/v1/owners/${id}`, {
       method: 'PUT',
@@ -338,6 +349,31 @@ export const apiClient = {
     return res.blob();
   },
 
+  getCardTheme: () =>
+    requestJson<{
+      theme: PublicCardTheme;
+      logoUrl: string | null;
+      migrationPending?: boolean;
+    }>('/api/v1/card-theme'),
+  updateCardTheme: (payload: Omit<PublicCardTheme, 'hasCustomLogo'>) =>
+    requestJson<{ theme: PublicCardTheme; logoUrl: string | null }>('/api/v1/card-theme', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  uploadCardLogo: (formData: FormData) =>
+    requestJson<{ theme: PublicCardTheme; logoUrl: string | null }>('/api/v1/card-theme/logo', {
+      method: 'POST',
+      body: formData,
+    }),
+  deleteCardLogo: () =>
+    requestJson<{ theme: PublicCardTheme; logoUrl: string | null }>('/api/v1/card-theme/logo', {
+      method: 'DELETE',
+    }),
+
   getPublicCard: (token: string) =>
-    requestJson<{ card: PublicCardData }>(`/api/v1/public/${encodeURIComponent(token)}`, {}, false),
+    requestJson<{
+      card: PublicCardData;
+      theme?: PublicCardTheme;
+      logoUrl?: string | null;
+    }>(`/api/v1/public/${encodeURIComponent(token)}`, {}, false),
 };

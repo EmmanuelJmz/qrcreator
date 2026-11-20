@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AdminLayout, type AdminModule } from '@/src/components/admin-layout';
 import { apiClient, type AdminUser, type AuthConfig } from '@/src/lib/api-client';
 import { LoginPage } from '@/src/modules/auth/login-page';
+import { CardThemeModule } from '@/src/modules/card-theme/card-theme-module';
 import { LabelEditorModule } from '@/src/modules/label-editor/label-editor-module';
 import { OwnersModule } from '@/src/modules/owners/owners-module';
 import { PublicCardPage } from '@/src/modules/public-card/public-card-page';
@@ -12,6 +13,7 @@ const MODULE_LABELS: Record<AdminModule, string> = {
   owners: 'Propietarios',
   templates: 'Plantillas',
   editor: 'Editor de etiquetas QR',
+  'card-theme': 'Diseño de ficha',
   public: 'Ficha pública',
 };
 
@@ -222,6 +224,7 @@ export default function App() {
       )}
       {activeModule === 'templates' && <TemplatesModule />}
       {activeModule === 'editor' && <LabelEditorModule initialOwnerId={editorOwnerId} />}
+      {activeModule === 'card-theme' && <CardThemeModule />}
       {activeModule === 'public' && (
         <PublicLookupAdmin
           initialToken={lookupToken}

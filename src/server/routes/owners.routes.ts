@@ -5,11 +5,13 @@ import multer from 'multer';
 import { getDb } from '../db/index.ts';
 import { labels, ownerDocuments, owners, templates } from '../db/schema.ts';
 import { validateLabelGeometry } from '../../lib/qr-geometry.ts';
+import { normalizeOwnerCardOverride } from '../../lib/public-card-theme.ts';
 import { normalizeQrStyle } from '../../lib/qr-styled.ts';
 import { requireAdmin } from '../middleware/auth.middleware.ts';
 import {
   documentVisibilitySchema,
   labelConfigSchema,
+  ownerCardThemeOverrideSchema,
   ownerInfoSchema,
   ownerStatusSchema,
   uuidParamSchema,
@@ -243,6 +245,7 @@ ownersRouter.get('/:id', async (req, res, next) => {
         tokenVersion: owner.tokenVersion,
         scanCount: Number(owner.scanCount ?? 0),
         lastScannedAt: owner.lastScannedAt ? toIso(owner.lastScannedAt) : null,
+        cardThemeOverride: normalizeOwnerCardOverride(owner.cardThemeOverride),
         publicToken,
         publicUrl: publicToken ? buildPublicCardUrl(publicToken, origin) : null,
         createdAt: toIso(owner.createdAt),
@@ -309,6 +312,27 @@ ownersRouter.post('/', upload.array('documents', MAX_DOCUMENTS_PER_OWNER), async
       res.status(400).json({ error: labelParsed.error.issues[0]?.message || 'Configuración de etiqueta inválida.' });
       return;
     }
+
+    let rawCardOverridePayload: unknown = null;
+    if (req.body?.cardThemeOverride) {
+      try {
+        rawCardOverridePayload =
+          typeof req.body.cardThemeOverride === 'string'
+            ? JSON.parse(req.body.cardThemeOverride)
+            : req.body.cardThemeOverride;
+      } catch {
+        res.status(400).json({ error: 'Personalización de ficha inválida.' });
+        return;
+      }
+    }
+    const cardOverrideParsed = ownerCardThemeOverrideSchema.safeParse(rawCardOverridePayload);
+    if (!cardOverrideParsed.success) {
+      res.status(400).json({
+        error: cardOverrideParsed.error.issues[0]?.message || 'Personalización de ficha inválida.',
+      });
+      return;
+    }
+    const cardThemeOverride = normalizeOwnerCardOverride(cardOverrideParsed.data);
 
     const db = getDb();
     const templateRows = await db
@@ -429,6 +453,7 @@ ownersRouter.post('/', upload.array('documents', MAX_DOCUMENTS_PER_OWNER), async
         publicTokenHash: tokenHash,
         encryptedPublicToken: encryptedToken,
         tokenVersion: 1,
+        cardThemeOverride,
         createdAt: now,
         updatedAt: now,
       });
@@ -515,9 +540,23 @@ ownersRouter.put('/:id', async (req, res, next) => {
       return;
     }
 
+    let hasOverrideUpdate = false;
+    let nextCardOverride = null;
+    if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'cardThemeOverride')) {
+      const overrideCheck = ownerCardThemeOverrideSchema.safeParse(req.body.cardThemeOverride);
+      if (!overrideCheck.success) {
+        res.status(400).json({
+          error: overrideCheck.error.issues[0]?.message || 'Personalización de ficha inválida.',
+        });
+        return;
+      }
+      hasOverrideUpdate = true;
+      nextCardOverride = normalizeOwnerCardOverride(overrideCheck.data);
+    }
+
     const db = getDb();
     const existingRows = await db
-      .select({ id: owners.id })
+      .select({ id: owners.id, cardThemeOverride: owners.cardThemeOverride })
       .from(owners)
       .where(eq(owners.id, idCheck.data))
       .limit(1);
@@ -536,6 +575,7 @@ ownersRouter.put('/:id', async (req, res, next) => {
         lastName: parsed.data.lastName,
         email: parsed.data.email,
         phone: parsed.data.phone,
+        ...(hasOverrideUpdate ? { cardThemeOverride: nextCardOverride } : {}),
         updatedAt: now,
       })
       .where(eq(owners.id, idCheck.data));
@@ -548,6 +588,9 @@ ownersRouter.put('/:id', async (req, res, next) => {
         fullName: `${parsed.data.firstName} ${parsed.data.lastName}`.trim(),
         email: parsed.data.email,
         phone: parsed.data.phone,
+        cardThemeOverride: hasOverrideUpdate
+          ? nextCardOverride
+          : normalizeOwnerCardOverride(existingRows[0].cardThemeOverride),
         updatedAt: now.toISOString(),
       },
     });

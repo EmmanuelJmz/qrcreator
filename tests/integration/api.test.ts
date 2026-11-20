@@ -204,6 +204,29 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
           recordedScans += 1;
         }
       },
+      async getCardTheme() {
+        return {
+          theme: {
+            brandName: 'MotoClub MX',
+            subtitleText: 'Identificación',
+            headerColor: '#1E293B',
+            headerHeight: 190,
+            logoX: 25,
+            logoY: 85,
+            logoSize: 96,
+          },
+          logo_storage_key: null,
+          logo_mime_type: null,
+        };
+      },
+      async getOwnerThemeOverrideByHash(hash) {
+        if (hash !== expectedHash) return null;
+        return {
+          useGlobalTheme: false,
+          headerColor: '#DC2626',
+          subtitleText: 'Capitán',
+        };
+      },
     });
 
     const pubOk = await request(app).get(`/api/v1/public/${validToken}`);
@@ -220,6 +243,15 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
           mimeType: 'image/png',
         },
       ],
+    });
+    expect(pubOk.body.theme).toMatchObject({
+      brandName: 'MotoClub MX',
+      headerHeight: 190,
+      logoX: 25,
+      logoY: 85,
+      logoSize: 96,
+      headerColor: '#DC2626',
+      subtitleText: 'Capitán',
     });
 
     const pubMissing = await request(app).get('/api/v1/public/OtroTokenNoVigente_1234567890abcd');
@@ -367,5 +399,39 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
       .set('Authorization', `Bearer ${token}`)
       .send({ ownerIds: tooManyIds, paperSize: 'tabloid', columns: 4 });
     expect(tooManyRes.status).toBe(400);
+  });
+
+  it('valida parámetros en PUT /api/v1/card-theme y exige sesión admin', async () => {
+    const unauth = await request(app).get('/api/v1/card-theme');
+    expect(unauth.status).toBe(401);
+
+    process.env.ADMIN_USERNAME = 'admin';
+    process.env.ADMIN_PASSWORD = 'SecretPassword123!';
+    process.env.SESSION_SECRET = 'test-session-secret-0123456789abcdef';
+
+    const loginRes = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ username: 'admin', password: 'SecretPassword123!' });
+    const token = loginRes.body.sessionToken as string;
+
+    const badHex = await request(app)
+      .put('/api/v1/card-theme')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        brandName: 'CascoQR',
+        headerColor: 'naranja',
+        headerHeight: 160,
+      });
+    expect(badHex.status).toBe(400);
+
+    const badHeight = await request(app)
+      .put('/api/v1/card-theme')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        brandName: 'CascoQR',
+        headerColor: '#F97316',
+        headerHeight: 500,
+      });
+    expect(badHeight.status).toBe(400);
   });
 });

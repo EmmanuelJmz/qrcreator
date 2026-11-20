@@ -5,6 +5,7 @@ import {
   char,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -12,6 +13,10 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
+import type {
+  OwnerCardThemeOverride,
+  PublicCardTheme,
+} from '../../lib/public-card-theme.ts';
 
 export const owners = pgTable(
   'owners',
@@ -27,6 +32,7 @@ export const owners = pgTable(
     tokenVersion: integer('token_version').default(1).notNull(),
     scanCount: integer('scan_count').default(0).notNull(),
     lastScannedAt: timestamp('last_scanned_at', { withTimezone: true }),
+    cardThemeOverride: jsonb('card_theme_override').$type<OwnerCardThemeOverride | null>(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -99,6 +105,14 @@ export const loginAttempts = pgTable(
     index('login_attempts_time_idx').on(table.attemptedAt),
   ],
 );
+
+export const publicCardSettings = pgTable('public_card_settings', {
+  id: integer('id').primaryKey().default(1),
+  theme: jsonb('theme').$type<PublicCardTheme>().notNull(),
+  logoStorageKey: varchar('logo_storage_key', { length: 500 }),
+  logoMimeType: varchar('logo_mime_type', { length: 100 }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
 
 export const ownersRelations = relations(owners, ({ many, one }) => ({
   documents: many(ownerDocuments),

@@ -118,11 +118,20 @@ export interface PublicDocumentFileSqlRow {
   mime_type: string;
 }
 
+export interface PublicCardThemeSqlRow {
+  theme: unknown;
+  logo_storage_key: string | null;
+  logo_mime_type: string | null;
+  updated_at?: Date | string | null;
+}
+
 export interface PublicQueryExecutor {
   getCardByHash(tokenHash: string): Promise<PublicCardSqlRow | null>;
   getDocumentsByHash(tokenHash: string): Promise<PublicDocumentSqlRow[]>;
   getDocumentFile(tokenHash: string, docId: string): Promise<PublicDocumentFileSqlRow | null>;
   recordScanByHash?(tokenHash: string): Promise<void>;
+  getCardTheme?(): Promise<PublicCardThemeSqlRow | null>;
+  getOwnerThemeOverrideByHash?(tokenHash: string): Promise<unknown | null>;
 }
 
 let customPublicExecutorForTests: PublicQueryExecutor | null = null;
@@ -162,6 +171,21 @@ export function getPublicQueryExecutor(): PublicQueryExecutor {
     async recordScanByHash(tokenHash: string) {
       const pool = getPublicPool();
       await pool.query('SELECT public_record_scan($1::char(64))', [tokenHash]);
+    },
+    async getCardTheme() {
+      const pool = getPublicPool();
+      const result = await pool.query<PublicCardThemeSqlRow>(
+        'SELECT * FROM public_get_card_theme()',
+      );
+      return result.rows[0] ?? null;
+    },
+    async getOwnerThemeOverrideByHash(tokenHash: string) {
+      const pool = getPublicPool();
+      const result = await pool.query<{ override: unknown }>(
+        'SELECT public_owner_theme_by_hash($1::char(64)) AS override',
+        [tokenHash],
+      );
+      return result.rows[0]?.override ?? null;
     },
   };
 }

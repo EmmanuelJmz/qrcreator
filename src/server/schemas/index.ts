@@ -107,6 +107,38 @@ export const printSheetSchema = z.object({
   gapSize: z.enum(['compact', 'normal']).default('normal'),
 });
 
+const hexColorSchema = z
+  .string()
+  .trim()
+  .regex(/^#[0-9a-fA-F]{6}$/, 'El color debe ser un código hexadecimal válido (ej. #F97316).');
+
+export const publicCardThemeSchema = z.object({
+  brandName: z.string().trim().min(1, 'El nombre visible es obligatorio.').max(60),
+  subtitleText: z.string().trim().max(80).default(''),
+  showBrandName: z.boolean().default(true),
+  showSubtitle: z.boolean().default(true),
+  headerColor: hexColorSchema.default('#F97316'),
+  headerHeight: z.coerce.number().int().min(80).max(280).default(160),
+  logoVisible: z.boolean().default(true),
+  logoShape: z.enum(['circle', 'rounded', 'square', 'none']).default('circle'),
+  logoSize: z.coerce.number().int().min(56).max(180).default(112),
+  logoX: z.coerce.number().int().min(5).max(95).default(50),
+  logoY: z.coerce.number().int().min(10).max(130).default(100),
+  pageBg: z.enum(['slate', 'white', 'warm', 'dark']).default('slate'),
+  showLabelPreviewButton: z.boolean().default(true),
+  footerNote: z.string().trim().max(200).default(''),
+});
+
+export const ownerCardThemeOverrideSchema = z
+  .object({
+    useGlobalTheme: z.boolean().default(true),
+    headerColor: hexColorSchema.nullable().optional(),
+    subtitleText: z.string().trim().max(80).nullable().optional(),
+    pageBg: z.enum(['slate', 'white', 'warm', 'dark']).nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
 export const uuidParamSchema = z.string().uuid('Identificador inválido.');
 export const publicTokenParamSchema = z
   .string()

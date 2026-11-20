@@ -5,6 +5,7 @@ import {
   FileImage,
   LogOut,
   Menu,
+  Palette,
   QrCode,
   ShieldCheck,
   Users,
@@ -13,7 +14,7 @@ import {
 import { Button } from '@/src/components/ui/button';
 import type { AdminUser } from '@/src/lib/api-client';
 
-export type AdminModule = 'owners' | 'templates' | 'editor' | 'public';
+export type AdminModule = 'owners' | 'templates' | 'editor' | 'card-theme' | 'public';
 
 interface AdminLayoutProps {
   activeModule: AdminModule;
@@ -34,6 +35,7 @@ const NAV_ITEMS: Array<{
   { id: 'owners', label: 'Propietarios', icon: Users },
   { id: 'templates', label: 'Plantillas', icon: FileImage },
   { id: 'editor', label: 'Editor de etiquetas QR', icon: QrCode },
+  { id: 'card-theme', label: 'Diseño de ficha', icon: Palette },
   { id: 'public', label: 'Ficha pública', icon: Eye },
 ];
 

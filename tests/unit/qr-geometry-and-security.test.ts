@@ -6,7 +6,20 @@ import {
   validateLabelGeometry,
 } from '@/src/lib/qr-geometry';
 import { QR_STYLE_IDS, renderStyledQrSvg } from '@/src/lib/qr-styled';
-import { labelConfigSchema, ownerInfoSchema, printSheetSchema } from '@/src/server/schemas';
+import {
+  computeBannerVisuals,
+  computeLogoOverhangPx,
+  DEFAULT_PUBLIC_CARD_THEME,
+  mergeThemeWithOwnerOverride,
+  normalizePublicCardTheme,
+} from '@/src/lib/public-card-theme';
+import {
+  labelConfigSchema,
+  ownerCardThemeOverrideSchema,
+  ownerInfoSchema,
+  printSheetSchema,
+  publicCardThemeSchema,
+} from '@/src/server/schemas';
 import {
   composePrintSheetPng,
   generateQrPngBuffer,
@@ -313,5 +326,72 @@ describe('Seguridad criptográfica de tokens y firma binaria de archivos', () =>
     expect(tabloidMeta.format).toBe('png');
     expect(tabloidMeta.width).toBe(1650);
     expect(tabloidMeta.height).toBe(2550);
+  });
+
+  it('normaliza diseño de ficha pública, fusiona personalización híbrida y calcula contraste y overhang del logo', () => {
+    const normalized = normalizePublicCardTheme({
+      headerColor: '#1e293b',
+      headerHeight: 400, // clamped to 280
+      logoX: 2, // clamped to 5
+      logoY: 160, // clamped to 130
+      logoSize: 30, // clamped to 56
+    });
+    expect(normalized.headerColor).toBe('#1E293B');
+    expect(normalized.headerHeight).toBe(280);
+    expect(normalized.logoX).toBe(5);
+    expect(normalized.logoY).toBe(130);
+    expect(normalized.logoSize).toBe(56);
+
+    // Hybrid merge: global stays intact when override is null or useGlobalTheme is true
+    const untouched = mergeThemeWithOwnerOverride(DEFAULT_PUBLIC_CARD_THEME, null);
+    expect(untouched.headerColor).toBe('#F97316');
+
+    const customized = mergeThemeWithOwnerOverride(DEFAULT_PUBLIC_CARD_THEME, {
+      useGlobalTheme: false,
+      headerColor: '#2563EB',
+      subtitleText: 'Motoclub Halcones',
+      pageBg: 'dark',
+    });
+    expect(customized.headerColor).toBe('#2563EB');
+    expect(customized.subtitleText).toBe('Motoclub Halcones');
+    expect(customized.pageBg).toBe('dark');
+    expect(customized.brandName).toBe('CascoQR'); // inherited from global
+
+    // Luminance contrast check
+    expect(computeBannerVisuals('#F8FAFC').textColor).toBe('#0F172A');
+    expect(computeBannerVisuals('#0F172A').textColor).toBe('#FFFFFF');
+
+    // Logo overhang
+    expect(
+      computeLogoOverhangPx({
+        logoVisible: true,
+        logoY: 100,
+        logoSize: 112,
+        headerHeight: 160,
+      }),
+    ).toBe(56);
+    expect(
+      computeLogoOverhangPx({
+        logoVisible: true,
+        logoY: 50,
+        logoSize: 80,
+        headerHeight: 160,
+      }),
+    ).toBe(0);
+
+    // Schema validation
+    expect(
+      publicCardThemeSchema.safeParse({
+        brandName: 'Mi Club',
+        headerColor: 'no-es-hex',
+      }).success,
+    ).toBe(false);
+    expect(
+      ownerCardThemeOverrideSchema.safeParse({
+        useGlobalTheme: false,
+        headerColor: '#DC2626',
+        subtitleText: 'VIP',
+      }).success,
+    ).toBe(true);
   });
 });

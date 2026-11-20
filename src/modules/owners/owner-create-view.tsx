@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Plus, Save, Trash2, Upload } from 'lucide-react';
+import { OwnerCardThemeControl } from '@/src/components/owner-card-theme-control';
 import { QRLabelCanvas } from '@/src/components/qr-label-canvas';
 import { QrCoordinateInputs } from '@/src/components/qr-coordinate-inputs';
 import { QrStyleSelector } from '@/src/components/qr-style-selector';
@@ -15,6 +16,7 @@ import {
   SelectValue,
 } from '@/src/components/ui/select';
 import { apiClient, ApiError, type TemplateItem } from '@/src/lib/api-client';
+import type { OwnerCardThemeOverride } from '@/src/lib/public-card-theme';
 import {
   clampSquareLabelGeometry,
   defaultSquareLabelGeometry,
@@ -56,6 +58,7 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [qrStyle, setQrStyle] = useState<QrStyle>('classic');
   const [geometry, setGeometry] = useState<LabelGeometry>({ x: 65, y: 20, width: 20, height: 20 });
+  const [cardThemeOverride, setCardThemeOverride] = useState<OwnerCardThemeOverride | null>(null);
 
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -229,6 +232,9 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
           qrStyle,
         }),
       );
+      if (cardThemeOverride && cardThemeOverride.useGlobalTheme === false) {
+        fd.append('cardThemeOverride', JSON.stringify(cardThemeOverride));
+      }
       fd.append(
         'documentVisibilities',
         JSON.stringify(initialBatch.map((d) => d.isPublic)),
@@ -349,6 +355,12 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
                 className="font-mono tabular-nums"
               />
             </div>
+
+            <OwnerCardThemeControl
+              value={cardThemeOverride}
+              onChange={setCardThemeOverride}
+              disabled={saving}
+            />
           </section>
 
           <section className="rounded-xl border border-slate-200 bg-white p-6 space-y-4">

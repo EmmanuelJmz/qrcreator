@@ -1,4 +1,10 @@
 import { Router } from 'express';
+import {
+  DEFAULT_PUBLIC_CARD_THEME,
+  mergeThemeWithOwnerOverride,
+  normalizeOwnerCardOverride,
+  normalizePublicCardTheme,
+} from '../../lib/public-card-theme.ts';
 import { normalizeQrStyle } from '../../lib/qr-styled.ts';
 import { getPublicQueryExecutor } from '../db/index.ts';
 import { rateLimitPublic } from '../middleware/auth.middleware.ts';
@@ -20,6 +26,30 @@ function hashValidTokenOrNull(rawToken: string): string | null {
   if (!parsed.success) return null;
   return hashPublicToken(parsed.data);
 }
+
+publicRouter.get('/theme-logo', async (_req, res, next) => {
+  try {
+    const publicDb = getPublicQueryExecutor();
+    let row = null;
+    try {
+      row = (await publicDb.getCardTheme?.()) ?? null;
+    } catch {
+      row = null;
+    }
+
+    if (!row?.logo_storage_key || !row.logo_mime_type) {
+      res.status(404).json({ error: 'Logo personalizado no configurado.' });
+      return;
+    }
+
+    const buffer = await getStorageProvider().getObject(row.logo_storage_key);
+    res.setHeader('Content-Type', row.logo_mime_type);
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
 
 publicRouter.get('/:token', async (req, res, next) => {
   try {
@@ -43,6 +73,32 @@ publicRouter.get('/:token', async (req, res, next) => {
       // Ignore gracefully if public_record_scan SQL migration has not been applied yet
     }
 
+    let globalRow = null;
+    try {
+      globalRow = (await publicDb.getCardTheme?.()) ?? null;
+    } catch {
+      globalRow = null;
+    }
+
+    let ownerOverrideRaw: unknown = null;
+    try {
+      ownerOverrideRaw = (await publicDb.getOwnerThemeOverrideByHash?.(tokenHash)) ?? null;
+    } catch {
+      ownerOverrideRaw = null;
+    }
+
+    const globalTheme = normalizePublicCardTheme({
+      ...((globalRow?.theme as Record<string, unknown> | undefined) ?? DEFAULT_PUBLIC_CARD_THEME),
+      hasCustomLogo: Boolean(globalRow?.logo_storage_key),
+    });
+    const mergedTheme = mergeThemeWithOwnerOverride(
+      globalTheme,
+      normalizeOwnerCardOverride(ownerOverrideRaw),
+    );
+    const updatedAt = globalRow?.updated_at
+      ? new Date(String(globalRow.updated_at)).getTime()
+      : null;
+
     res.setHeader('Cache-Control', 'no-store');
     res.json({
       card: {
@@ -55,6 +111,10 @@ publicRouter.get('/:token', async (req, res, next) => {
           mimeType: d.mime_type,
         })),
       },
+      theme: mergedTheme,
+      logoUrl: globalRow?.logo_storage_key
+        ? `/api/v1/public/theme-logo${updatedAt && !Number.isNaN(updatedAt) ? `?v=${updatedAt}` : ''}`
+        : null,
     });
   } catch (err) {
     next(err);

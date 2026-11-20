@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Eye, Save, Trash2, Upload } from 'lucide-react';
+import { OwnerCardThemeControl } from '@/src/components/owner-card-theme-control';
 import { ProtectedImage } from '@/src/components/protected-image';
 import { Button } from '@/src/components/ui/button';
 import {
@@ -17,6 +18,7 @@ import {
   ApiError,
   type OwnerDocumentItem,
 } from '@/src/lib/api-client';
+import type { OwnerCardThemeOverride } from '@/src/lib/public-card-theme';
 import {
   EMAIL_REGEX,
   formatDateShort,
@@ -42,6 +44,7 @@ export function OwnerEditDialog({ ownerId, onClose, onSaved }: OwnerEditDialogPr
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [documents, setDocuments] = useState<OwnerDocumentItem[]>([]);
+  const [cardThemeOverride, setCardThemeOverride] = useState<OwnerCardThemeOverride | null>(null);
   const [previewDoc, setPreviewDoc] = useState<OwnerDocumentItem | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -60,6 +63,7 @@ export function OwnerEditDialog({ ownerId, onClose, onSaved }: OwnerEditDialogPr
       setLastName(res.owner.lastName);
       setEmail(res.owner.email || '');
       setPhone(res.owner.phone || '');
+      setCardThemeOverride(res.owner.cardThemeOverride ?? null);
       setDocuments(res.documents);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al cargar el propietario.');
@@ -110,6 +114,7 @@ export function OwnerEditDialog({ ownerId, onClose, onSaved }: OwnerEditDialogPr
         lastName: cleanLast,
         email: email.trim(),
         phone: phone.trim(),
+        cardThemeOverride,
       });
       setFeedback('Datos personales actualizados. El token QR vigente se mantiene sin cambios.');
       onSaved();
@@ -277,6 +282,12 @@ export function OwnerEditDialog({ ownerId, onClose, onSaved }: OwnerEditDialogPr
                     />
                   </div>
                 </div>
+
+                <OwnerCardThemeControl
+                  value={cardThemeOverride}
+                  onChange={setCardThemeOverride}
+                  disabled={saving}
+                />
 
                 <div className="flex justify-end">
                   <Button type="submit" disabled={saving}>
