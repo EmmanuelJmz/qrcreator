@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { asc, desc, eq, ilike, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { Router } from 'express';
 import multer from 'multer';
 import { getDb } from '../db/index.ts';
@@ -61,43 +61,76 @@ ownersRouter.get('/', async (req, res, next) => {
   try {
     const db = getDb();
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const statusParam =
+      req.query.status === 'active' || req.query.status === 'inactive'
+        ? req.query.status
+        : 'all';
 
-    const whereClause =
-      q.length > 0
-        ? (() => {
-            const pattern = `%${q}%`;
-            return or(
-              ilike(owners.firstName, pattern),
-              ilike(owners.lastName, pattern),
-              ilike(sql`${owners.firstName} || ' ' || ${owners.lastName}`, pattern),
-              ilike(sql`COALESCE(${owners.email}, '')`, pattern),
-              ilike(sql`COALESCE(${owners.phone}, '')`, pattern),
-            );
-          })()
-        : undefined;
+    const conditions = [];
+    if (q.length > 0) {
+      const pattern = `%${q}%`;
+      conditions.push(
+        or(
+          ilike(owners.firstName, pattern),
+          ilike(owners.lastName, pattern),
+          ilike(sql`${owners.firstName} || ' ' || ${owners.lastName}`, pattern),
+          ilike(sql`COALESCE(${owners.email}, '')`, pattern),
+          ilike(sql`COALESCE(${owners.phone}, '')`, pattern),
+        ),
+      );
+    }
+    if (statusParam === 'active') {
+      conditions.push(eq(owners.status, true));
+    } else if (statusParam === 'inactive') {
+      conditions.push(eq(owners.status, false));
+    }
 
-    const rows = await db
-      .select({
-        id: owners.id,
-        firstName: owners.firstName,
-        lastName: owners.lastName,
-        email: owners.email,
-        phone: owners.phone,
-        status: owners.status,
-        encryptedPublicToken: owners.encryptedPublicToken,
-        tokenVersion: owners.tokenVersion,
-        createdAt: owners.createdAt,
-        updatedAt: owners.updatedAt,
-        documentCount: sql<number>`(SELECT COUNT(*)::int FROM owner_documents d WHERE d.owner_id = ${owners.id})`,
-        labelId: labels.id,
-        templateId: labels.templateId,
-        templateName: templates.name,
-      })
-      .from(owners)
-      .leftJoin(labels, eq(labels.ownerId, owners.id))
-      .leftJoin(templates, eq(templates.id, labels.templateId))
-      .where(whereClause)
-      .orderBy(desc(owners.updatedAt), desc(owners.createdAt));
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [rows, statsRows] = await Promise.all([
+      db
+        .select({
+          id: owners.id,
+          firstName: owners.firstName,
+          lastName: owners.lastName,
+          email: owners.email,
+          phone: owners.phone,
+          status: owners.status,
+          encryptedPublicToken: owners.encryptedPublicToken,
+          tokenVersion: owners.tokenVersion,
+          createdAt: owners.createdAt,
+          updatedAt: owners.updatedAt,
+          documentCount: sql<number>`(SELECT COUNT(*)::int FROM owner_documents d WHERE d.owner_id = ${owners.id})`,
+          labelId: labels.id,
+          templateId: labels.templateId,
+          templateName: templates.name,
+        })
+        .from(owners)
+        .leftJoin(labels, eq(labels.ownerId, owners.id))
+        .leftJoin(templates, eq(templates.id, labels.templateId))
+        .where(whereClause)
+        .orderBy(desc(owners.updatedAt), desc(owners.createdAt)),
+      db
+        .select({
+          totalOwners: sql<number>`COUNT(*)::int`,
+          activeOwners: sql<number>`COUNT(*) FILTER (WHERE ${owners.status} = true)::int`,
+          inactiveOwners: sql<number>`COUNT(*) FILTER (WHERE ${owners.status} = false)::int`,
+          totalLabels: sql<number>`(SELECT COUNT(*)::int FROM labels)`,
+          totalTemplates: sql<number>`(SELECT COUNT(*)::int FROM templates)`,
+          totalDocuments: sql<number>`(SELECT COUNT(*)::int FROM owner_documents)`,
+        })
+        .from(owners),
+    ]);
+
+    const s = statsRows[0];
+    const stats = {
+      totalOwners: Number(s?.totalOwners ?? 0),
+      activeOwners: Number(s?.activeOwners ?? 0),
+      inactiveOwners: Number(s?.inactiveOwners ?? 0),
+      totalLabels: Number(s?.totalLabels ?? 0),
+      totalTemplates: Number(s?.totalTemplates ?? 0),
+      totalDocuments: Number(s?.totalDocuments ?? 0),
+    };
 
     const origin = getRequestOrigin(req);
 
@@ -124,6 +157,7 @@ ownersRouter.get('/', async (req, res, next) => {
           updatedAt: toIso(row.updatedAt),
         };
       }),
+      stats,
     });
   } catch (err) {
     next(err);

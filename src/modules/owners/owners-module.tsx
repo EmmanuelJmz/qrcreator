@@ -3,6 +3,7 @@ import {
   Ban,
   CheckCircle2,
   Eye,
+  FileImage,
   Pencil,
   Plus,
   Power,
@@ -19,22 +20,32 @@ import {
   DialogTitle,
 } from '@/src/components/ui/dialog';
 import { Input } from '@/src/components/ui/input';
-import { apiClient, ApiError, type OwnerSummary } from '@/src/lib/api-client';
+import {
+  apiClient,
+  ApiError,
+  type OwnerDashboardStats,
+  type OwnerStatusFilter,
+  type OwnerSummary,
+} from '@/src/lib/api-client';
 import { OwnerCreateView } from './owner-create-view';
 import { OwnerEditDialog } from './owner-edit-dialog';
 
 interface OwnersModuleProps {
   onOpenEditorForOwner: (ownerId: string) => void;
   onOpenPublicCardForToken: (token: string) => void;
+  onOpenTemplates: () => void;
 }
 
 export function OwnersModule({
   onOpenEditorForOwner,
   onOpenPublicCardForToken,
+  onOpenTemplates,
 }: OwnersModuleProps) {
   const [mode, setMode] = useState<'list' | 'create'>('list');
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
+  const [stats, setStats] = useState<OwnerDashboardStats | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<OwnerStatusFilter>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -43,12 +54,15 @@ export function OwnersModule({
   const [statusTarget, setStatusTarget] = useState<OwnerSummary | null>(null);
   const [togglingStatus, setTogglingStatus] = useState(false);
 
-  const fetchOwners = useCallback(async (q: string) => {
+  const fetchOwners = useCallback(async (q: string, status: OwnerStatusFilter) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.listOwners(q);
+      const res = await apiClient.listOwners(q, status);
       setOwners(res.owners);
+      if (res.stats) {
+        setStats(res.stats);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al cargar los propietarios.');
     } finally {
@@ -59,10 +73,10 @@ export function OwnersModule({
   useEffect(() => {
     if (mode !== 'list') return;
     const handle = window.setTimeout(() => {
-      void fetchOwners(searchQuery);
+      void fetchOwners(searchQuery, statusFilter);
     }, 180);
     return () => window.clearTimeout(handle);
-  }, [searchQuery, mode, fetchOwners]);
+  }, [searchQuery, statusFilter, mode, fetchOwners]);
 
   const handleConfirmToggleStatus = async () => {
     if (!statusTarget) return;
@@ -78,7 +92,7 @@ export function OwnersModule({
           : `Propietario "${statusTarget.fullName}" desactivado y token QR anterior revocado.`,
       );
       setStatusTarget(null);
-      await fetchOwners(searchQuery);
+      await fetchOwners(searchQuery, statusFilter);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado.');
     } finally {
@@ -93,7 +107,7 @@ export function OwnersModule({
         onCreated={() => {
           setMode('list');
           setFeedback('Propietario y etiqueta QR registrados correctamente.');
-          void fetchOwners(searchQuery);
+          void fetchOwners(searchQuery, statusFilter);
         }}
       />
     );
@@ -117,9 +131,112 @@ export function OwnersModule({
         </Button>
       </div>
 
-      {/* Search Bar */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <div className="relative max-w-md">
+      {/* Resumen operativo */}
+      {stats ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <button
+            type="button"
+            onClick={() => setStatusFilter('all')}
+            aria-pressed={statusFilter === 'all'}
+            className={`text-left rounded-xl border p-4 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${
+              statusFilter === 'all'
+                ? 'border-blue-600 bg-white ring-2 ring-blue-600/15'
+                : 'border-slate-200 bg-white hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2 text-xs font-medium text-slate-500">
+              <span>Propietarios totales</span>
+              <Users className="h-4 w-4 text-slate-400 shrink-0" />
+            </div>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900 font-mono tabular-nums">
+              {stats.totalOwners}
+            </p>
+            <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums">
+              {stats.totalLabels} {stats.totalLabels === 1 ? 'etiqueta QR' : 'etiquetas QR'}
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setStatusFilter((curr) => (curr === 'active' ? 'all' : 'active'))
+            }
+            aria-pressed={statusFilter === 'active'}
+            className={`text-left rounded-xl border p-4 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${
+              statusFilter === 'active'
+                ? 'border-emerald-600 bg-white ring-2 ring-emerald-600/15'
+                : 'border-slate-200 bg-white hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2 text-xs font-medium text-slate-500">
+              <span>Activos con QR</span>
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+            </div>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900 font-mono tabular-nums">
+              {stats.activeOwners}
+            </p>
+            <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums">
+              {stats.totalOwners > 0
+                ? `${Math.round((stats.activeOwners / stats.totalOwners) * 100)}% del padrón`
+                : 'Sin registros aún'}
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setStatusFilter((curr) => (curr === 'inactive' ? 'all' : 'inactive'))
+            }
+            aria-pressed={statusFilter === 'inactive'}
+            className={`text-left rounded-xl border p-4 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${
+              statusFilter === 'inactive'
+                ? 'border-red-600 bg-white ring-2 ring-red-600/15'
+                : 'border-slate-200 bg-white hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2 text-xs font-medium text-slate-500">
+              <span>Inactivos</span>
+              <Ban className="h-4 w-4 text-red-500 shrink-0" />
+            </div>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900 font-mono tabular-nums">
+              {stats.inactiveOwners}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Tokens QR revocados
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenTemplates}
+            className="text-left rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-slate-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+          >
+            <div className="flex items-center justify-between gap-2 text-xs font-medium text-slate-500">
+              <span>Plantillas</span>
+              <FileImage className="h-4 w-4 text-slate-400 shrink-0" />
+            </div>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900 font-mono tabular-nums">
+              {stats.totalTemplates}
+            </p>
+            <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums">
+              {stats.totalDocuments} {stats.totalDocuments === 1 ? 'documento cargado' : 'documentos cargados'}
+            </p>
+          </button>
+        </div>
+      ) : loading ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {[1, 2, 3, 4].map((n) => (
+            <div
+              key={n}
+              className="h-[104px] rounded-xl border border-slate-200 bg-white animate-pulse"
+            />
+          ))}
+        </div>
+      ) : null}
+
+      {/* Search & Status Filter Bar */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-md">
           <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <Input
             type="search"
@@ -129,6 +246,36 @@ export function OwnersModule({
             className="pl-9"
             aria-label="Buscar propietarios"
           />
+        </div>
+
+        <div
+          role="group"
+          aria-label="Filtrar por estado"
+          className="inline-flex items-center gap-1 p-1 rounded-lg bg-slate-100 self-start sm:self-auto"
+        >
+          {(
+            [
+              { id: 'all', label: 'Todos' },
+              { id: 'active', label: 'Activos' },
+              { id: 'inactive', label: 'Inactivos' },
+            ] as const
+          ).map((tab) => {
+            const active = statusFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setStatusFilter(tab.id)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  active
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -157,16 +304,26 @@ export function OwnersModule({
         <div className="rounded-xl border border-slate-200 bg-white p-12 text-center space-y-3">
           <Users className="h-10 w-10 text-slate-300 mx-auto" />
           <h3 className="text-base font-semibold text-slate-900">
-            {searchQuery.trim()
+            {searchQuery.trim() || statusFilter !== 'all'
               ? 'No se encontraron coincidencias'
               : 'Aún no hay propietarios registrados'}
           </h3>
           <p className="text-sm text-slate-500 max-w-md mx-auto">
-            {searchQuery.trim()
-              ? 'Intenta con otro nombre, correo electrónico o número telefónico.'
+            {searchQuery.trim() || statusFilter !== 'all'
+              ? 'Ajusta la búsqueda o cambia el filtro de estado para ver otros registros.'
               : 'Registra el primer propietario y configura su etiqueta QR en el mismo flujo.'}
           </p>
-          {!searchQuery.trim() && (
+          {searchQuery.trim() || statusFilter !== 'all' ? (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSearchQuery('');
+                setStatusFilter('all');
+              }}
+            >
+              <span>Limpiar filtros</span>
+            </Button>
+          ) : (
             <Button onClick={() => setMode('create')}>
               <Plus className="h-4 w-4" />
               <span>Registrar primer propietario</span>
@@ -287,7 +444,7 @@ export function OwnersModule({
       <OwnerEditDialog
         ownerId={editingOwnerId}
         onClose={() => setEditingOwnerId(null)}
-        onSaved={() => void fetchOwners(searchQuery)}
+        onSaved={() => void fetchOwners(searchQuery, statusFilter)}
       />
 
       {/* Confirm Deactivate / Reactivate Dialog */}

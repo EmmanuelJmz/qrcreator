@@ -47,6 +47,17 @@ export interface LabelConfig {
   updatedAt: string;
 }
 
+export interface OwnerDashboardStats {
+  totalOwners: number;
+  activeOwners: number;
+  inactiveOwners: number;
+  totalLabels: number;
+  totalTemplates: number;
+  totalDocuments: number;
+}
+
+export type OwnerStatusFilter = 'all' | 'active' | 'inactive';
+
 export interface OwnerSummary {
   id: string;
   firstName: string;
@@ -174,10 +185,15 @@ export const apiClient = {
     }
   },
 
-  listOwners: (q = '') =>
-    requestJson<{ owners: OwnerSummary[] }>(
-      `/api/v1/owners${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''}`,
-    ),
+  listOwners: (q = '', status: OwnerStatusFilter = 'all') => {
+    const params = new URLSearchParams();
+    if (q.trim()) params.set('q', q.trim());
+    if (status !== 'all') params.set('status', status);
+    const qs = params.toString();
+    return requestJson<{ owners: OwnerSummary[]; stats?: OwnerDashboardStats }>(
+      `/api/v1/owners${qs ? `?${qs}` : ''}`,
+    );
+  },
   getOwner: (id: string) => requestJson<OwnerDetailResponse>(`/api/v1/owners/${id}`),
   createOwnerWithLabel: (formData: FormData) =>
     requestJson<{ owner: OwnerDetailResponse['owner'] }>('/api/v1/owners', {

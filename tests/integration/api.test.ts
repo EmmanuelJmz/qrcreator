@@ -272,4 +272,59 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
       .attach('image', samplePngBuffer, 'valid.png');
     expect(missingR2Tpl.status).toBe(503);
   });
+
+  it('retorna estadísticas reales del padrón en GET /api/v1/owners sin requerir tablas adicionales', async () => {
+    process.env.ADMIN_USERNAME = 'admin';
+    process.env.ADMIN_PASSWORD = 'SecretPassword123!';
+    process.env.SESSION_SECRET = 'test-session-secret-0123456789abcdef';
+
+    const mockOwnersDb = {
+      select: (fields: Record<string, unknown>) => ({
+        from: () => {
+          if ('totalOwners' in fields) {
+            return Promise.resolve([
+              {
+                totalOwners: 5,
+                activeOwners: 4,
+                inactiveOwners: 1,
+                totalLabels: 5,
+                totalTemplates: 2,
+                totalDocuments: 7,
+              },
+            ]);
+          }
+          return {
+            leftJoin: () => ({
+              leftJoin: () => ({
+                where: () => ({
+                  orderBy: async () => [],
+                }),
+              }),
+            }),
+          };
+        },
+      }),
+    };
+    setDbForTests(mockOwnersDb as unknown as AppDb);
+
+    const loginRes = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ username: 'admin', password: 'SecretPassword123!' });
+    expect(loginRes.status).toBe(200);
+
+    const res = await request(app)
+      .get('/api/v1/owners?status=active')
+      .set('Authorization', `Bearer ${loginRes.body.sessionToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.owners).toEqual([]);
+    expect(res.body.stats).toEqual({
+      totalOwners: 5,
+      activeOwners: 4,
+      inactiveOwners: 1,
+      totalLabels: 5,
+      totalTemplates: 2,
+      totalDocuments: 7,
+    });
+  });
 });

@@ -134,6 +134,7 @@ export default function App() {
         <OwnersModule
           onOpenEditorForOwner={handleOpenEditorForOwner}
           onOpenPublicCardForToken={handleOpenPublicCardForToken}
+          onOpenTemplates={() => setActiveModule('templates')}
         />
       )}
       {activeModule === 'templates' && <TemplatesModule />}
