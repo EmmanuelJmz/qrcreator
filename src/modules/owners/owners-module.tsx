@@ -213,10 +213,36 @@ export function OwnersModule({
           </p>
         </div>
 
-        <Button onClick={() => setMode('create')}>
-          <Plus className="h-4 w-4" />
-          <span>Nuevo propietario</span>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={eligibleOwners.length === 0}
+            onClick={() => {
+              if (selectedIds.length === 0) {
+                setSelectedIds(eligibleOwners.slice(0, 20).map((o) => o.id));
+              }
+              setShowPrintSheetDialog(true);
+            }}
+            title={
+              eligibleOwners.length === 0
+                ? 'Necesitas al menos un propietario activo con etiqueta configurada'
+                : 'Genera una hoja Carta o Tabloide en PNG con varias etiquetas QR'
+            }
+          >
+            <Printer className="h-4 w-4" />
+            <span>
+              {selectedIds.length > 0
+                ? `Imprimir hoja (${selectedIds.length})`
+                : 'Imprimir varias etiquetas'}
+            </span>
+          </Button>
+
+          <Button onClick={() => setMode('create')}>
+            <Plus className="h-4 w-4" />
+            <span>Nuevo propietario</span>
+          </Button>
+        </div>
       </div>
 
       {/* Resumen operativo */}
