@@ -70,13 +70,13 @@ const PAGE_STYLE_CLASSES: Record<
   }
 > = {
   slate: {
-    root: 'bg-slate-50 text-slate-900',
-    card: 'border-slate-200 bg-white',
+    root: 'bg-slate-200 text-slate-900',
+    card: 'border-slate-300/80 bg-white shadow-xs',
     title: 'text-slate-950',
     muted: 'text-slate-500',
-    contactBox: 'border-slate-200 bg-slate-50 hover:bg-slate-100/80',
+    contactBox: 'border-slate-200 bg-slate-50 hover:bg-slate-100',
     contactValue: 'text-slate-900',
-    docCard: 'border-slate-200 bg-white hover:border-slate-400',
+    docCard: 'border-slate-300/80 bg-white hover:border-slate-500 shadow-xs',
     docThumb: 'bg-slate-100 border-slate-200',
     divider: 'border-slate-100',
   },
@@ -92,14 +92,14 @@ const PAGE_STYLE_CLASSES: Record<
     divider: 'border-slate-100',
   },
   warm: {
-    root: 'bg-stone-100 text-stone-900',
-    card: 'border-stone-200 bg-white',
+    root: 'bg-[#EFE6D5] text-stone-900',
+    card: 'border-stone-300/80 bg-white shadow-xs',
     title: 'text-stone-950',
-    muted: 'text-stone-500',
-    contactBox: 'border-stone-200 bg-stone-50 hover:bg-stone-100',
+    muted: 'text-stone-600',
+    contactBox: 'border-stone-200 bg-[#FAF6EE] hover:bg-[#F3EBD9]',
     contactValue: 'text-stone-900',
-    docCard: 'border-stone-200 bg-white hover:border-stone-400',
-    docThumb: 'bg-stone-100 border-stone-200',
+    docCard: 'border-stone-300/80 bg-white hover:border-stone-500 shadow-xs',
+    docThumb: 'bg-[#F7F1E6] border-stone-200',
     divider: 'border-stone-100',
   },
   dark: {

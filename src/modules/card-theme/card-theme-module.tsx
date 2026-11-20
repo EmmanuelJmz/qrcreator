@@ -425,23 +425,27 @@ export function CardThemeModule() {
                   <div className="grid grid-cols-2 gap-2">
                     {(
                       [
-                        { id: 'slate', label: 'Gris claro' },
-                        { id: 'white', label: 'Blanco puro' },
-                        { id: 'warm', label: 'Arena cálido' },
-                        { id: 'dark', label: 'Modo oscuro' },
-                      ] as Array<{ id: PageBackgroundMode; label: string }>
+                        { id: 'slate', label: 'Gris claro', swatch: '#E2E8F0' },
+                        { id: 'white', label: 'Blanco puro', swatch: '#FFFFFF' },
+                        { id: 'warm', label: 'Arena cálido', swatch: '#EFE6D5' },
+                        { id: 'dark', label: 'Modo oscuro', swatch: '#020617' },
+                      ] as Array<{ id: PageBackgroundMode; label: string; swatch: string }>
                     ).map((bg) => (
                       <button
                         key={bg.id}
                         type="button"
                         onClick={() => setTheme((prev) => ({ ...prev, pageBg: bg.id }))}
-                        className={`rounded-lg border px-3 py-2 text-xs font-medium text-left cursor-pointer transition-colors ${
+                        className={`rounded-lg border px-3 py-2 text-xs font-medium text-left flex items-center gap-2 cursor-pointer transition-colors ${
                           theme.pageBg === bg.id
                             ? 'border-blue-600 bg-blue-50/70 text-blue-700 ring-1 ring-blue-600'
                             : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                         }`}
                       >
-                        {bg.label}
+                        <span
+                          className="h-4 w-4 rounded-full border border-slate-300 shrink-0"
+                          style={{ backgroundColor: bg.swatch }}
+                        />
+                        <span>{bg.label}</span>
                       </button>
                     ))}
                   </div>
