@@ -1,6 +1,6 @@
 import QRCode from 'qrcode';
 
-export const QR_STYLE_IDS = ['fluid', 'dots', 'rounded', 'diamonds'] as const;
+export const QR_STYLE_IDS = ['classic', 'fluid', 'dots', 'rounded', 'diamonds'] as const;
 export type QrStyle = (typeof QR_STYLE_IDS)[number];
 
 export interface QrStyleOption {
@@ -10,6 +10,11 @@ export interface QrStyleOption {
 }
 
 export const QR_STYLE_OPTIONS: readonly QrStyleOption[] = [
+  {
+    id: 'classic',
+    label: 'Clásico',
+    description: 'QR genérico estándar de cuadros negros',
+  },
   {
     id: 'fluid',
     label: 'Fluido CascoQR',
@@ -123,6 +128,16 @@ export function renderStyledQrSvg(text: string, options: StyledQrOptions = {}): 
 
       const x0 = margin + c;
       const y0 = margin + r;
+
+      if (style === 'classic') {
+        if (!isDark(r, c)) continue;
+        const right = isDataDark(r, c + 1);
+        const bottom = isDataDark(r + 1, c);
+        const x1 = x0 + 1 + (right ? EPS : 0);
+        const y1 = y0 + 1 + (bottom ? EPS : 0);
+        pathParts.push(`M${fmt(x0)} ${fmt(y0)}H${fmt(x1)}V${fmt(y1)}H${fmt(x0)}Z`);
+        continue;
+      }
 
       if (style === 'dots') {
         if (!isDark(r, c)) continue;
@@ -258,6 +273,15 @@ export function renderStyledQrSvg(text: string, options: StyledQrOptions = {}): 
           `<path d="${starD}" fill="#DC2626"/>`
         );
       })
+      .join('');
+  } else if (style === 'classic') {
+    moduleFill = '#000000';
+    findersSvg = finderCoords
+      .map(
+        ({ x, y }) =>
+          `<rect x="${fmt(x + 0.5)}" y="${fmt(y + 0.5)}" width="6" height="6" fill="none" stroke="#000000" stroke-width="1"/>` +
+          `<rect x="${fmt(x + 2)}" y="${fmt(y + 2)}" width="3" height="3" fill="#000000"/>`,
+      )
       .join('');
   } else {
     // 'fluid'

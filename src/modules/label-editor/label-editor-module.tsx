@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Download, RotateCcw, Save } from 'lucide-react';
 import { QRLabelCanvas } from '@/src/components/qr-label-canvas';
+import { QrCoordinateInputs } from '@/src/components/qr-coordinate-inputs';
 import { QrStyleSelector } from '@/src/components/qr-style-selector';
 import { Button } from '@/src/components/ui/button';
-import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
 import {
   Select,
@@ -180,22 +180,6 @@ export function LabelEditorModule({ initialOwnerId }: LabelEditorModuleProps) {
         .then(setQrSvg)
         .catch(() => {});
     }
-  };
-
-  const handleNumericChange = (field: 'x' | 'y' | 'width', rawValue: string) => {
-    if (!activeTemplate) return;
-    const numeric = Number(rawValue);
-    if (Number.isNaN(numeric)) return;
-
-    const candidate = {
-      x: field === 'x' ? numeric : geometry.x,
-      y: field === 'y' ? numeric : geometry.y,
-      width: field === 'width' ? numeric : geometry.width,
-    };
-
-    setGeometry(
-      clampSquareLabelGeometry(candidate, activeTemplate.width, activeTemplate.height),
-    );
   };
 
   const handleReset = () => {
@@ -454,64 +438,17 @@ export function LabelEditorModule({ initialOwnerId }: LabelEditorModuleProps) {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="coord-x">Posición X (%)</Label>
-              <Input
-                id="coord-x"
-                type="number"
-                step="0.5"
-                min={0}
-                max={100}
-                disabled={!ownerActive}
-                value={geometry.x}
-                onChange={(e) => handleNumericChange('x', e.target.value)}
-                className="font-mono tabular-nums"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="coord-y">Posición Y (%)</Label>
-              <Input
-                id="coord-y"
-                type="number"
-                step="0.5"
-                min={0}
-                max={100}
-                disabled={!ownerActive}
-                value={geometry.y}
-                onChange={(e) => handleNumericChange('y', e.target.value)}
-                className="font-mono tabular-nums"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="coord-w">Ancho QR (%)</Label>
-              <Input
-                id="coord-w"
-                type="number"
-                step="0.5"
-                min={5}
-                max={100}
-                disabled={!ownerActive}
-                value={geometry.width}
-                onChange={(e) => handleNumericChange('width', e.target.value)}
-                className="font-mono tabular-nums"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="coord-h">Alto QR (% · 1:1)</Label>
-              <Input
-                id="coord-h"
-                type="number"
-                value={geometry.height}
-                readOnly
-                disabled
-                className="font-mono tabular-nums bg-slate-50"
-              />
-            </div>
-          </div>
+          {activeTemplate && (
+            <QrCoordinateInputs
+              idPrefix="coord"
+              geometry={geometry}
+              templateWidth={activeTemplate.width}
+              templateHeight={activeTemplate.height}
+              onChange={setGeometry}
+              disabled={!ownerActive}
+              columns={2}
+            />
+          )}
 
           {activeTemplate && (
             <div className="pt-4 border-t border-slate-100 space-y-1.5 text-xs text-slate-600">

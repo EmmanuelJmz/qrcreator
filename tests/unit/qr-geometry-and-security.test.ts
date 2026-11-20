@@ -176,10 +176,17 @@ describe('Seguridad criptográfica de tokens y firma binaria de archivos', () =>
       expect(meta.height).toBe(240);
     }
 
+    expect(renderStyledQrSvg(sampleUrl, { style: 'classic' })).toContain('fill="#000000"');
     expect(renderStyledQrSvg(sampleUrl, { style: 'fluid' })).toContain('fill="#DC4C0D"');
     expect(renderStyledQrSvg(sampleUrl, { style: 'dots' })).toContain('<circle');
     expect(renderStyledQrSvg(sampleUrl, { style: 'rounded' })).toContain('<linearGradient');
     expect(renderStyledQrSvg(sampleUrl, { style: 'diamonds' })).toContain('fill="#DC2626"');
+  });
+
+  it('conserva precisión de 2 decimales (ej. 45.21 y 67.98) en geometría 1:1', () => {
+    const clamped = clampSquareLabelGeometry({ x: 45.21, y: 67.98, width: 20.15 }, 1000, 1000);
+    expect(clamped).toEqual({ x: 45.21, y: 67.98, width: 20.15, height: 20.15 });
+    expect(validateLabelGeometry(clamped, 1000, 1000).valid).toBe(true);
   });
 
   it('valida qrStyle en labelConfigSchema y asigna fluid por defecto', () => {

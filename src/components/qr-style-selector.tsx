@@ -33,7 +33,7 @@ export function QrStyleSelector({
       <div
         role="radiogroup"
         aria-label="Estilo del código QR"
-        className="grid grid-cols-2 sm:grid-cols-4 gap-2.5"
+        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5"
       >
         {previews.map((opt) => {
           const selected = value === opt.id;
