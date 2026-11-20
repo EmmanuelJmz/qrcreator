@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Globe,
   Monitor,
   RotateCcw,
   Save,
@@ -12,10 +15,24 @@ import { PublicCardView } from '@/src/components/public-card-renderer';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
-import { apiClient, ApiError, type PublicCardData } from '@/src/lib/api-client';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/src/components/ui/select';
+import {
+  apiClient,
+  ApiError,
+  type OwnerSummary,
+  type PublicCardData,
+} from '@/src/lib/api-client';
+import {
+  buildOwnerOverrideFromTheme,
   DEFAULT_PUBLIC_CARD_THEME,
   HEADER_COLOR_PRESETS,
+  mergeThemeWithOwnerOverride,
   type LogoShape,
   type PageBackgroundMode,
   type PublicCardTheme,
@@ -39,12 +56,24 @@ const PREVIEW_SAMPLE_CARD: PublicCardData = {
   ],
 };
 
+const GLOBAL_SCOPE_VALUE = '__global__';
 type ControlTab = 'header' | 'logo' | 'texts';
 
-export function CardThemeModule() {
+interface CardThemeModuleProps {
+  initialOwnerId?: string | null;
+}
+
+export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
+  const [globalTheme, setGlobalTheme] = useState<PublicCardTheme>(DEFAULT_PUBLIC_CARD_THEME);
   const [theme, setTheme] = useState<PublicCardTheme>(DEFAULT_PUBLIC_CARD_THEME);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [migrationPending, setMigrationPending] = useState(false);
+
+  const [owners, setOwners] = useState<OwnerSummary[]>([]);
+  const [scopeId, setScopeId] = useState<string>(initialOwnerId || GLOBAL_SCOPE_VALUE);
+  const [ownerHasCustom, setOwnerHasCustom] = useState(false);
+  const [previewCard, setPreviewCard] = useState<PublicCardData>(PREVIEW_SAMPLE_CARD);
+  const [loadingOwner, setLoadingOwner] = useState(false);
 
   const [previewViewport, setPreviewViewport] = useState<'mobile' | 'desktop'>('mobile');
   const [activeTab, setActiveTab] = useState<ControlTab>('header');
@@ -56,16 +85,27 @@ export function CardThemeModule() {
   const [feedback, setFeedback] = useState<string | null>(null);
 
   useEffect(() => {
+    if (initialOwnerId) {
+      setScopeId(initialOwnerId);
+    }
+  }, [initialOwnerId]);
+
+  useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const res = await apiClient.getCardTheme();
+        const [themeRes, ownersRes] = await Promise.all([
+          apiClient.getCardTheme(),
+          apiClient.listOwners().catch(() => ({ owners: [] as OwnerSummary[] })),
+        ]);
         if (cancelled) return;
-        setTheme(res.theme);
-        setLogoUrl(res.logoUrl);
-        setMigrationPending(Boolean(res.migrationPending));
+        setGlobalTheme(themeRes.theme);
+        setTheme(themeRes.theme);
+        setLogoUrl(themeRes.logoUrl);
+        setMigrationPending(Boolean(themeRes.migrationPending));
+        setOwners(ownersRes.owners);
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -84,20 +124,134 @@ export function CardThemeModule() {
     };
   }, []);
 
+  useEffect(() => {
+    if (loading) return;
+
+    if (scopeId === GLOBAL_SCOPE_VALUE) {
+      setTheme(globalTheme);
+      setOwnerHasCustom(false);
+      setPreviewCard(PREVIEW_SAMPLE_CARD);
+      return;
+    }
+
+    let cancelled = false;
+    async function loadOwnerTheme() {
+      setLoadingOwner(true);
+      setError(null);
+      try {
+        const detail = await apiClient.getOwner(scopeId);
+        if (cancelled) return;
+        const override = detail.owner.cardThemeOverride ?? null;
+        setOwnerHasCustom(Boolean(override && override.useGlobalTheme === false));
+        setTheme(mergeThemeWithOwnerOverride(globalTheme, override));
+        setPreviewCard({
+          fullName: detail.owner.fullName,
+          email: detail.owner.email,
+          phone: detail.owner.phone,
+          documents: detail.documents
+            .filter((d) => d.isPublic)
+            .map((d) => ({
+              id: d.id,
+              originalName: d.originalName,
+              mimeType: d.mimeType,
+              createdAt: d.createdAt,
+            })),
+        });
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof ApiError
+              ? err.message
+              : 'No se pudo cargar el diseño de este propietario.',
+          );
+        }
+      } finally {
+        if (!cancelled) setLoadingOwner(false);
+      }
+    }
+
+    void loadOwnerTheme();
+    return () => {
+      cancelled = true;
+    };
+  }, [scopeId, globalTheme, loading]);
+
+  const isGlobalScope = scopeId === GLOBAL_SCOPE_VALUE;
+  const activeOwnerSummary = !isGlobalScope
+    ? owners.find((o) => o.id === scopeId) ?? null
+    : null;
+
+  const scopeOptions = [GLOBAL_SCOPE_VALUE, ...owners.map((o) => o.id)];
+  const currentScopeIdx = scopeOptions.indexOf(scopeId);
+
+  const handleStepScope = (delta: number) => {
+    if (scopeOptions.length <= 1) return;
+    const nextIdx =
+      (currentScopeIdx + delta + scopeOptions.length) % scopeOptions.length;
+    setFeedback(null);
+    setScopeId(scopeOptions[nextIdx]);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError(null);
     setFeedback(null);
     try {
-      const { hasCustomLogo: _ignored, ...payload } = theme;
-      const res = await apiClient.updateCardTheme(payload);
-      setTheme(res.theme);
-      setLogoUrl(res.logoUrl);
-      setMigrationPending(false);
-      setFeedback('Diseño global guardado. Todas las fichas sin personalización propia ya muestran estos cambios.');
+      if (isGlobalScope) {
+        const { hasCustomLogo: _ignored, ...payload } = theme;
+        const res = await apiClient.updateCardTheme(payload);
+        setGlobalTheme(res.theme);
+        setTheme(res.theme);
+        setLogoUrl(res.logoUrl);
+        setMigrationPending(false);
+        setFeedback(
+          'Diseño global guardado. Todas las fichas sin diseño propio ya reflejan estos cambios.',
+        );
+      } else {
+        const { hasCustomLogo: _ignored, ...payload } = theme;
+        const override = buildOwnerOverrideFromTheme(payload);
+        await apiClient.updateOwnerCardTheme(scopeId, override);
+        setOwnerHasCustom(true);
+        setOwners((prev) =>
+          prev.map((o) =>
+            o.id === scopeId ? { ...o, hasCustomCardTheme: true } : o,
+          ),
+        );
+        setFeedback(
+          `Diseño personalizado guardado solo para ${activeOwnerSummary?.fullName || 'este propietario'}.`,
+        );
+      }
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : 'No se pudo guardar el diseño.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRevertOwnerToGlobal = async () => {
+    if (isGlobalScope) return;
+    setSaving(true);
+    setError(null);
+    setFeedback(null);
+    try {
+      await apiClient.updateOwnerCardTheme(scopeId, null);
+      setOwnerHasCustom(false);
+      setTheme(globalTheme);
+      setOwners((prev) =>
+        prev.map((o) =>
+          o.id === scopeId ? { ...o, hasCustomCardTheme: false } : o,
+        ),
+      );
+      setFeedback(
+        `${activeOwnerSummary?.fullName || 'Este propietario'} ahora hereda el diseño global.`,
+      );
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : 'No se pudo restablecer al diseño global.',
       );
     } finally {
       setSaving(false);
@@ -123,7 +277,12 @@ export function CardThemeModule() {
       const fd = new FormData();
       fd.append('logo', file);
       const res = await apiClient.uploadCardLogo(fd);
-      setTheme(res.theme);
+      setGlobalTheme(res.theme);
+      setTheme((prev) => ({
+        ...prev,
+        logoVisible: true,
+        hasCustomLogo: res.theme.hasCustomLogo,
+      }));
       setLogoUrl(res.logoUrl);
       setMigrationPending(false);
       setFeedback('Logo personalizado subido y aplicado.');
@@ -140,7 +299,8 @@ export function CardThemeModule() {
     setFeedback(null);
     try {
       const res = await apiClient.deleteCardLogo();
-      setTheme(res.theme);
+      setGlobalTheme(res.theme);
+      setTheme((prev) => ({ ...prev, hasCustomLogo: false }));
       setLogoUrl(null);
       setFeedback('Se restauró el ícono de casco predeterminado.');
     } catch (err) {
@@ -153,7 +313,7 @@ export function CardThemeModule() {
   const handleResetDefaults = () => {
     setFeedback(null);
     setTheme((prev) => ({
-      ...DEFAULT_PUBLIC_CARD_THEME,
+      ...(isGlobalScope ? DEFAULT_PUBLIC_CARD_THEME : globalTheme),
       hasCustomLogo: prev.hasCustomLogo,
     }));
   };
@@ -176,28 +336,117 @@ export function CardThemeModule() {
             Diseño de ficha pública
           </h2>
           <p className="text-sm text-slate-500">
-            Personaliza la pantalla que ven al escanear el QR: arrastra el logo libremente y ajusta el tamaño del encabezado.
+            Edita el diseño global o personaliza propietario por propietario (1×1) con arrastre libre de logo y franja superior.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleResetDefaults}
-            disabled={saving}
-          >
-            <RotateCcw className="h-4 w-4" />
-            <span>Restablecer</span>
-          </Button>
+          {!isGlobalScope && ownerHasCustom ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handleRevertOwnerToGlobal()}
+              disabled={saving}
+            >
+              <Globe className="h-4 w-4" />
+              <span>Usar diseño global</span>
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleResetDefaults}
+              disabled={saving}
+            >
+              <RotateCcw className="h-4 w-4" />
+              <span>{isGlobalScope ? 'Restablecer' : 'Copiar de global'}</span>
+            </Button>
+          )}
           <Button
             type="button"
             onClick={() => void handleSave()}
-            disabled={saving}
+            disabled={saving || loadingOwner}
           >
             <Save className="h-4 w-4" />
-            <span>{saving ? 'Guardando...' : 'Guardar diseño global'}</span>
+            <span>
+              {saving
+                ? 'Guardando...'
+                : isGlobalScope
+                  ? 'Guardar diseño global'
+                  : 'Guardar ficha individual'}
+            </span>
           </Button>
+        </div>
+      </div>
+
+      {/* Scope Selector: Global vs 1x1 Per Owner */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="space-y-1 flex-1 min-w-0">
+          <Label>¿Qué ficha estás editando?</Label>
+          <div className="flex items-center gap-2">
+            <Select
+              value={scopeId}
+              onValueChange={(val) => {
+                setFeedback(null);
+                setScopeId(val);
+              }}
+            >
+              <SelectTrigger className="w-full sm:max-w-md">
+                <SelectValue placeholder="Selecciona alcance" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={GLOBAL_SCOPE_VALUE}>
+                  Diseño global (aplica a todos por defecto)
+                </SelectItem>
+                {owners.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.fullName} · {o.hasCustomCardTheme ? 'Personalizada' : 'Usa global'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {owners.length > 0 && (
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => handleStepScope(-1)}
+                  title="Anterior"
+                  aria-label="Propietario anterior"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => handleStepScope(1)}
+                  title="Siguiente (editar 1 por 1)"
+                  aria-label="Siguiente propietario"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="text-xs text-slate-600 sm:text-right">
+          {isGlobalScope ? (
+            <span>
+              Editando el <strong>diseño maestro</strong> para quienes usan el global.
+            </span>
+          ) : ownerHasCustom ? (
+            <span className="text-blue-700 font-medium">
+              Ficha individual personalizada ({activeOwnerSummary?.fullName})
+            </span>
+          ) : (
+            <span>
+              Actualmente hereda el diseño global. Al guardar se volverá individual.
+            </span>
+          )}
         </div>
       </div>
 
@@ -270,21 +519,25 @@ export function CardThemeModule() {
           </div>
 
           <div className="p-4 sm:p-6 bg-slate-100 flex justify-center overflow-auto max-h-[760px]">
-            <div
-              className={`border border-slate-300 shadow-md overflow-hidden transition-all ${
-                previewViewport === 'mobile'
-                  ? 'w-full max-w-[390px] rounded-[28px]'
-                  : 'w-full rounded-xl'
-              }`}
-            >
-              <PublicCardView
-                card={PREVIEW_SAMPLE_CARD}
-                theme={theme}
-                logoUrl={logoUrl}
-                interactive
-                onThemeChange={setTheme}
-              />
-            </div>
+            {loadingOwner ? (
+              <div className="w-full max-w-[390px] h-[480px] rounded-[28px] bg-slate-200 animate-pulse" />
+            ) : (
+              <div
+                className={`border border-slate-300 shadow-md overflow-hidden transition-all ${
+                  previewViewport === 'mobile'
+                    ? 'w-full max-w-[390px] rounded-[28px]'
+                    : 'w-full rounded-xl'
+                }`}
+              >
+                <PublicCardView
+                  card={previewCard}
+                  theme={theme}
+                  logoUrl={logoUrl}
+                  interactive
+                  onThemeChange={setTheme}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -470,7 +723,9 @@ export function CardThemeModule() {
                 </label>
 
                 <div className="space-y-2 pt-1">
-                  <Label>Imagen del logo</Label>
+                  <Label>
+                    Imagen del logo {isGlobalScope ? '' : '(compartida globalmente)'}
+                  </Label>
                   <div className="flex flex-wrap items-center gap-2">
                     <label
                       className={`inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 hover:bg-slate-50 cursor-pointer ${

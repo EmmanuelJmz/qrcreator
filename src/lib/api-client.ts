@@ -78,6 +78,7 @@ export interface OwnerSummary {
   tokenVersion: number;
   scanCount: number;
   lastScannedAt: string | null;
+  hasCustomCardTheme?: boolean;
   publicToken: string | null;
   publicUrl: string | null;
   createdAt: string;
@@ -223,6 +224,14 @@ export const apiClient = {
     requestJson<{ owner: OwnerDetailResponse['owner'] }>(`/api/v1/owners/${id}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
+    }),
+  updateOwnerCardTheme: (id: string, override: OwnerCardThemeOverride | null) =>
+    requestJson<{
+      cardThemeOverride: OwnerCardThemeOverride | null;
+      hasCustomCardTheme: boolean;
+    }>(`/api/v1/owners/${id}/card-theme`, {
+      method: 'PUT',
+      body: JSON.stringify(override ?? { useGlobalTheme: true }),
     }),
   setOwnerStatus: (id: string, status: boolean) =>
     requestJson<{

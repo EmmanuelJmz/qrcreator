@@ -132,9 +132,20 @@ export const publicCardThemeSchema = z.object({
 export const ownerCardThemeOverrideSchema = z
   .object({
     useGlobalTheme: z.boolean().default(true),
-    headerColor: hexColorSchema.nullable().optional(),
+    brandName: z.string().trim().max(60).nullable().optional(),
     subtitleText: z.string().trim().max(80).nullable().optional(),
+    showBrandName: z.boolean().nullable().optional(),
+    showSubtitle: z.boolean().nullable().optional(),
+    headerColor: hexColorSchema.nullable().optional(),
+    headerHeight: z.coerce.number().int().min(80).max(280).nullable().optional(),
+    logoVisible: z.boolean().nullable().optional(),
+    logoShape: z.enum(['circle', 'rounded', 'square', 'none']).nullable().optional(),
+    logoSize: z.coerce.number().int().min(56).max(180).nullable().optional(),
+    logoX: z.coerce.number().int().min(5).max(95).nullable().optional(),
+    logoY: z.coerce.number().int().min(10).max(130).nullable().optional(),
     pageBg: z.enum(['slate', 'white', 'warm', 'dark']).nullable().optional(),
+    showLabelPreviewButton: z.boolean().nullable().optional(),
+    footerNote: z.string().trim().max(200).nullable().optional(),
   })
   .nullable()
   .optional();

@@ -40,12 +40,14 @@ import { OwnerEditDialog } from './owner-edit-dialog';
 interface OwnersModuleProps {
   onOpenEditorForOwner: (ownerId: string) => void;
   onOpenPublicCardForToken: (token: string) => void;
+  onOpenCardThemeForOwner: (ownerId: string) => void;
   onOpenTemplates: () => void;
 }
 
 export function OwnersModule({
   onOpenEditorForOwner,
   onOpenPublicCardForToken,
+  onOpenCardThemeForOwner,
   onOpenTemplates,
 }: OwnersModuleProps) {
   const [mode, setMode] = useState<'list' | 'create'>('list');
@@ -685,6 +687,7 @@ export function OwnersModule({
         ownerId={editingOwnerId}
         onClose={() => setEditingOwnerId(null)}
         onSaved={() => void fetchOwners(searchQuery, statusFilter)}
+        onOpenFullCardTheme={onOpenCardThemeForOwner}
       />
 
       <PrintSheetDialog

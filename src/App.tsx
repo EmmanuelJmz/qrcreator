@@ -47,6 +47,7 @@ export default function App() {
   const pushedDepthRef = useRef(0);
   const ignoreNextPopRef = useRef(false);
   const [editorOwnerId, setEditorOwnerId] = useState<string | null>(null);
+  const [cardThemeOwnerId, setCardThemeOwnerId] = useState<string | null>(null);
   const [lookupToken, setLookupToken] = useState<string | null>(null);
 
   const activeModule = navStack[navStack.length - 1] ?? 'owners';
@@ -190,6 +191,11 @@ export default function App() {
     navigateToModule('editor');
   };
 
+  const handleOpenCardThemeForOwner = (ownerId: string) => {
+    setCardThemeOwnerId(ownerId);
+    navigateToModule('card-theme');
+  };
+
   const handleOpenPublicCardForToken = (token: string) => {
     setLookupToken(token);
     navigateToModule('public');
@@ -219,12 +225,13 @@ export default function App() {
         <OwnersModule
           onOpenEditorForOwner={handleOpenEditorForOwner}
           onOpenPublicCardForToken={handleOpenPublicCardForToken}
+          onOpenCardThemeForOwner={handleOpenCardThemeForOwner}
           onOpenTemplates={() => navigateToModule('templates')}
         />
       )}
       {activeModule === 'templates' && <TemplatesModule />}
       {activeModule === 'editor' && <LabelEditorModule initialOwnerId={editorOwnerId} />}
-      {activeModule === 'card-theme' && <CardThemeModule />}
+      {activeModule === 'card-theme' && <CardThemeModule initialOwnerId={cardThemeOwnerId} />}
       {activeModule === 'public' && (
         <PublicLookupAdmin
           initialToken={lookupToken}

@@ -7,10 +7,12 @@ import {
 } from '@/src/lib/qr-geometry';
 import { QR_STYLE_IDS, renderStyledQrSvg } from '@/src/lib/qr-styled';
 import {
+  buildOwnerOverrideFromTheme,
   computeBannerVisuals,
   computeLogoOverhangPx,
   DEFAULT_PUBLIC_CARD_THEME,
   mergeThemeWithOwnerOverride,
+  normalizeOwnerCardOverride,
   normalizePublicCardTheme,
 } from '@/src/lib/public-card-theme';
 import {
@@ -393,5 +395,40 @@ describe('Seguridad criptográfica de tokens y firma binaria de archivos', () =>
         subtitleText: 'VIP',
       }).success,
     ).toBe(true);
+
+    // Full-layout per-owner override & revert
+    const fullOverride = buildOwnerOverrideFromTheme({
+      ...DEFAULT_PUBLIC_CARD_THEME,
+      brandName: 'Escuadra Norte',
+      subtitleText: 'Unidad 07',
+      showBrandName: true,
+      showSubtitle: false,
+      headerColor: '#059669',
+      headerHeight: 240,
+      logoVisible: false,
+      logoShape: 'square',
+      logoSize: 80,
+      logoX: 20,
+      logoY: 40,
+      pageBg: 'warm',
+      showLabelPreviewButton: false,
+      footerNote: 'Solo uso interno',
+    });
+    const mergedFull = mergeThemeWithOwnerOverride(DEFAULT_PUBLIC_CARD_THEME, fullOverride);
+    expect(mergedFull).toMatchObject({
+      brandName: 'Escuadra Norte',
+      headerColor: '#059669',
+      headerHeight: 240,
+      logoVisible: false,
+      logoShape: 'square',
+      logoSize: 80,
+      logoX: 20,
+      logoY: 40,
+      pageBg: 'warm',
+      showSubtitle: false,
+      showLabelPreviewButton: false,
+      footerNote: 'Solo uso interno',
+    });
+    expect(normalizeOwnerCardOverride({ useGlobalTheme: true })).toBeNull();
   });
 });

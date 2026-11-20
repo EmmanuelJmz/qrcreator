@@ -102,6 +102,7 @@ ownersRouter.get('/', async (req, res, next) => {
           tokenVersion: owners.tokenVersion,
           scanCount: owners.scanCount,
           lastScannedAt: owners.lastScannedAt,
+          cardThemeOverride: owners.cardThemeOverride,
           createdAt: owners.createdAt,
           updatedAt: owners.updatedAt,
           documentCount: sql<number>`(SELECT COUNT(*)::int FROM owner_documents d WHERE d.owner_id = ${owners.id})`,
@@ -159,6 +160,7 @@ ownersRouter.get('/', async (req, res, next) => {
           tokenVersion: row.tokenVersion,
           scanCount: Number(row.scanCount ?? 0),
           lastScannedAt: row.lastScannedAt ? toIso(row.lastScannedAt) : null,
+          hasCustomCardTheme: Boolean(normalizeOwnerCardOverride(row.cardThemeOverride)),
           publicToken,
           publicUrl: publicToken ? buildPublicCardUrl(publicToken, origin) : null,
           createdAt: toIso(row.createdAt),
@@ -593,6 +595,53 @@ ownersRouter.put('/:id', async (req, res, next) => {
           : normalizeOwnerCardOverride(existingRows[0].cardThemeOverride),
         updatedAt: now.toISOString(),
       },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+ownersRouter.put('/:id/card-theme', async (req, res, next) => {
+  try {
+    const idCheck = uuidParamSchema.safeParse(req.params.id);
+    if (!idCheck.success) {
+      res.status(400).json({ error: 'Identificador inválido.' });
+      return;
+    }
+
+    const overrideCheck = ownerCardThemeOverrideSchema.safeParse(req.body);
+    if (!overrideCheck.success) {
+      res.status(400).json({
+        error: overrideCheck.error.issues[0]?.message || 'Personalización de ficha inválida.',
+      });
+      return;
+    }
+
+    const db = getDb();
+    const existingRows = await db
+      .select({ id: owners.id })
+      .from(owners)
+      .where(eq(owners.id, idCheck.data))
+      .limit(1);
+
+    if (!existingRows[0]) {
+      res.status(404).json({ error: 'Propietario no encontrado.' });
+      return;
+    }
+
+    const normalized = normalizeOwnerCardOverride(overrideCheck.data);
+    const now = new Date();
+    await db
+      .update(owners)
+      .set({
+        cardThemeOverride: normalized,
+        updatedAt: now,
+      })
+      .where(eq(owners.id, idCheck.data));
+
+    res.json({
+      cardThemeOverride: normalized,
+      hasCustomCardTheme: Boolean(normalized),
     });
   } catch (err) {
     next(err);

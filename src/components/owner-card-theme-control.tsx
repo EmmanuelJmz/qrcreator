@@ -1,5 +1,6 @@
 import React from 'react';
-import { Palette } from 'lucide-react';
+import { ArrowUpRight, Palette } from 'lucide-react';
+import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
 import {
@@ -11,18 +12,21 @@ import {
 interface OwnerCardThemeControlProps {
   value: OwnerCardThemeOverride | null;
   onChange: (next: OwnerCardThemeOverride | null) => void;
+  onOpenFullEditor?: () => void;
   disabled?: boolean;
 }
 
 export function OwnerCardThemeControl({
   value,
   onChange,
+  onOpenFullEditor,
   disabled = false,
 }: OwnerCardThemeControlProps) {
   const isCustom = Boolean(value && value.useGlobalTheme === false);
 
   const enableCustom = () => {
     onChange({
+      ...(value ?? {}),
       useGlobalTheme: false,
       headerColor: value?.headerColor ?? '#1E293B',
       subtitleText: value?.subtitleText ?? '',
@@ -40,7 +44,7 @@ export function OwnerCardThemeControl({
               Apariencia al escanear QR
             </p>
             <p className="text-xs text-slate-500">
-              Usa el diseño global o define un color e insignia propios para este propietario.
+              Usa el diseño global o define una ficha propia para este propietario.
             </p>
           </div>
         </div>
@@ -177,6 +181,22 @@ export function OwnerCardThemeControl({
               </div>
             </div>
           </div>
+
+          {onOpenFullEditor && (
+            <div className="pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onOpenFullEditor}
+                disabled={disabled}
+                className="w-full justify-center bg-white"
+              >
+                <span>Abrir editor visual completo (mover logo, alto de franja y textos)</span>
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

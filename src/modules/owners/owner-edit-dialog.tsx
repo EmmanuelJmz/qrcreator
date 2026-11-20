@@ -32,13 +32,19 @@ interface OwnerEditDialogProps {
   ownerId: string | null;
   onClose: () => void;
   onSaved: () => void;
+  onOpenFullCardTheme?: (ownerId: string) => void;
 }
 
 const MAX_DOCS = 5;
 const MAX_SIZE = 4 * 1024 * 1024;
 const MAX_BATCH_BYTES = Math.floor(3.8 * 1024 * 1024);
 
-export function OwnerEditDialog({ ownerId, onClose, onSaved }: OwnerEditDialogProps) {
+export function OwnerEditDialog({
+  ownerId,
+  onClose,
+  onSaved,
+  onOpenFullCardTheme,
+}: OwnerEditDialogProps) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -286,6 +292,14 @@ export function OwnerEditDialog({ ownerId, onClose, onSaved }: OwnerEditDialogPr
                 <OwnerCardThemeControl
                   value={cardThemeOverride}
                   onChange={setCardThemeOverride}
+                  onOpenFullEditor={
+                    ownerId && onOpenFullCardTheme
+                      ? () => {
+                          onClose();
+                          onOpenFullCardTheme(ownerId);
+                        }
+                      : undefined
+                  }
                   disabled={saving}
                 />
 

@@ -434,4 +434,90 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
       });
     expect(badHeight.status).toBe(400);
   });
+
+  it('guarda y restablece el diseño completo individual en PUT /api/v1/owners/:id/card-theme', async () => {
+    process.env.ADMIN_USERNAME = 'admin';
+    process.env.ADMIN_PASSWORD = 'SecretPassword123!';
+    process.env.SESSION_SECRET = 'test-session-secret-0123456789abcdef';
+
+    let storedOverride: unknown = null;
+    const ownerId = '550e8400-e29b-41d4-a716-446655440000';
+
+    const mockDb = {
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [{ id: ownerId }],
+          }),
+        }),
+      }),
+      update: () => ({
+        set: (values: { cardThemeOverride?: unknown }) => ({
+          where: async () => {
+            storedOverride = values.cardThemeOverride ?? null;
+          },
+        }),
+      }),
+    };
+    setDbForTests(mockDb as unknown as AppDb);
+
+    const loginRes = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ username: 'admin', password: 'SecretPassword123!' });
+    const token = loginRes.body.sessionToken as string;
+
+    const badUuid = await request(app)
+      .put('/api/v1/owners/no-es-uuid/card-theme')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ useGlobalTheme: false, headerColor: '#2563EB' });
+    expect(badUuid.status).toBe(400);
+
+    const badOverride = await request(app)
+      .put(`/api/v1/owners/${ownerId}/card-theme`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ useGlobalTheme: false, headerHeight: 999 });
+    expect(badOverride.status).toBe(400);
+
+    const saveOk = await request(app)
+      .put(`/api/v1/owners/${ownerId}/card-theme`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        useGlobalTheme: false,
+        brandName: 'Casco Elite',
+        headerColor: '#2563EB',
+        headerHeight: 220,
+        logoX: 75,
+        logoY: 60,
+        logoSize: 90,
+        logoShape: 'rounded',
+        pageBg: 'warm',
+        footerNote: 'Nota individual',
+      });
+    expect(saveOk.status).toBe(200);
+    expect(saveOk.body.hasCustomCardTheme).toBe(true);
+    expect(saveOk.body.cardThemeOverride).toMatchObject({
+      useGlobalTheme: false,
+      brandName: 'Casco Elite',
+      headerColor: '#2563EB',
+      headerHeight: 220,
+      logoX: 75,
+      logoY: 60,
+      logoSize: 90,
+      logoShape: 'rounded',
+      pageBg: 'warm',
+      footerNote: 'Nota individual',
+    });
+    expect(storedOverride).toMatchObject({ headerHeight: 220, logoX: 75 });
+
+    const resetOk = await request(app)
+      .put(`/api/v1/owners/${ownerId}/card-theme`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ useGlobalTheme: true });
+    expect(resetOk.status).toBe(200);
+    expect(resetOk.body).toEqual({
+      cardThemeOverride: null,
+      hasCustomCardTheme: false,
+    });
+    expect(storedOverride).toBeNull();
+  });
 });

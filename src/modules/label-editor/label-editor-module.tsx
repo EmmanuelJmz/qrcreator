@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Download, RotateCcw, Save } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, RotateCcw, Save } from 'lucide-react';
 import { QRLabelCanvas } from '@/src/components/qr-label-canvas';
 import { QrCoordinateInputs } from '@/src/components/qr-coordinate-inputs';
 import { QrStyleSelector } from '@/src/components/qr-style-selector';
@@ -368,18 +368,54 @@ export function LabelEditorModule({ initialOwnerId }: LabelEditorModuleProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Propietario</Label>
-                <Select value={selectedOwnerId} onValueChange={setSelectedOwnerId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un propietario" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {owners.map((owner) => (
-                      <SelectItem key={owner.id} value={owner.id}>
-                        {owner.fullName} {owner.status ? '' : '(Inactivo)'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-1.5">
+                  <Select value={selectedOwnerId} onValueChange={setSelectedOwnerId}>
+                    <SelectTrigger className="flex-1 min-w-0">
+                      <SelectValue placeholder="Selecciona un propietario" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {owners.map((owner) => (
+                        <SelectItem key={owner.id} value={owner.id}>
+                          {owner.fullName} {owner.status ? '' : '(Inactivo)'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {owners.length > 1 && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => {
+                          const idx = owners.findIndex((o) => o.id === selectedOwnerId);
+                          const prevIdx =
+                            idx <= 0 ? owners.length - 1 : idx - 1;
+                          setSelectedOwnerId(owners[prevIdx].id);
+                        }}
+                        title="Propietario anterior"
+                        aria-label="Propietario anterior"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => {
+                          const idx = owners.findIndex((o) => o.id === selectedOwnerId);
+                          const nextIdx =
+                            idx < 0 || idx >= owners.length - 1 ? 0 : idx + 1;
+                          setSelectedOwnerId(owners[nextIdx].id);
+                        }}
+                        title="Siguiente propietario"
+                        aria-label="Siguiente propietario"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-1.5">
