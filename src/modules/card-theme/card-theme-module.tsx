@@ -42,8 +42,8 @@ import {
 
 const PREVIEW_SAMPLE_CARD: PublicCardData = {
   fullName: 'Carlos Mendoza Ruiz',
-  email: 'carlos@ejemplo.com',
-  phone: '+52 55 1234 5678',
+  email: null,
+  phone: null,
   emergencyProfile: {
     birthDate: '1994-06-15',
     bloodType: 'O+',
@@ -315,8 +315,8 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
         );
         setPreviewCard({
           fullName: detail.owner.fullName,
-          email: detail.owner.email,
-          phone: detail.owner.phone,
+          email: null,
+          phone: null,
           emergencyProfile: detail.owner.emergencyProfile ?? null,
           documents: detail.documents
             .filter((d) => d.isPublic)

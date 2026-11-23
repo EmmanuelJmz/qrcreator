@@ -27,7 +27,6 @@ import {
 } from '@/src/lib/emergency-profile';
 import type { OwnerCardThemeOverride } from '@/src/lib/public-card-theme';
 import {
-  EMAIL_REGEX,
   formatDateShort,
   formatFileSize,
   isValidPersonName,
@@ -54,8 +53,6 @@ export function OwnerEditDialog({
 }: OwnerEditDialogProps) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [documents, setDocuments] = useState<OwnerDocumentItem[]>([]);
   const [cardThemeOverride, setCardThemeOverride] = useState<OwnerCardThemeOverride | null>(null);
   const [emergencyProfile, setEmergencyProfile] = useState<OwnerEmergencyProfile>(
@@ -79,8 +76,6 @@ export function OwnerEditDialog({
       const res = await apiClient.getOwner(id);
       setFirstName(res.owner.firstName);
       setLastName(res.owner.lastName);
-      setEmail(res.owner.email || '');
-      setPhone(res.owner.phone || '');
       setCardThemeOverride(res.owner.cardThemeOverride ?? null);
       setEmergencyProfile(res.owner.emergencyProfile ?? createEmptyEmergencyProfile());
       setDocuments(res.documents);
@@ -115,15 +110,6 @@ export function OwnerEditDialog({
       setError('Los apellidos solo deben contener letras.');
       return;
     }
-    if (email.trim() && !EMAIL_REGEX.test(email.trim())) {
-      setError('Formato de correo electrónico inválido.');
-      return;
-    }
-    if (phone.trim() && !PHONE_REGEX.test(phone.trim())) {
-      setActiveTab('general');
-      setError('Formato de teléfono inválido.');
-      return;
-    }
     if (
       (emergencyProfile.contact1.phone.trim() &&
         !PHONE_REGEX.test(emergencyProfile.contact1.phone.trim())) ||
@@ -142,8 +128,6 @@ export function OwnerEditDialog({
       await apiClient.updateOwner(ownerId, {
         firstName: cleanFirst,
         lastName: cleanLast,
-        email: email.trim(),
-        phone: phone.trim(),
         cardThemeOverride,
         emergencyProfile: normalizeEmergencyProfile(emergencyProfile),
       });
@@ -325,30 +309,6 @@ export function OwnerEditDialog({
                             onChange={(e) => setLastName(e.target.value)}
                             maxLength={100}
                             required
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="edit-email">Correo electrónico</Label>
-                          <Input
-                            id="edit-email"
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            maxLength={150}
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="edit-phone">Teléfono</Label>
-                          <Input
-                            id="edit-phone"
-                            type="tel"
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            maxLength={30}
-                            className="font-mono tabular-nums"
                           />
                         </div>
                       </div>

@@ -31,7 +31,6 @@ import {
 } from '@/src/lib/qr-geometry';
 import { renderStyledQrSvg, type QrStyle } from '@/src/lib/qr-styled';
 import {
-  EMAIL_REGEX,
   formatFileSize,
   isValidPersonName,
   normalizePersonName,
@@ -57,8 +56,6 @@ const MAX_BATCH_BYTES = Math.floor(3.8 * 1024 * 1024);
 export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
 
   const [draftDocs, setDraftDocs] = useState<DraftDocument[]>([]);
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
@@ -195,14 +192,6 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
       setError('Los apellidos solo deben contener letras.');
       return;
     }
-    if (email.trim() && !EMAIL_REGEX.test(email.trim())) {
-      setError('Formato de correo electrónico inválido.');
-      return;
-    }
-    if (phone.trim() && !PHONE_REGEX.test(phone.trim())) {
-      setError('Formato de teléfono inválido.');
-      return;
-    }
     if (
       (emergencyProfile.contact1.phone.trim() &&
         !PHONE_REGEX.test(emergencyProfile.contact1.phone.trim())) ||
@@ -243,8 +232,6 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
       const fd = new FormData();
       fd.append('firstName', cleanFirst);
       fd.append('lastName', cleanLast);
-      fd.append('email', email.trim());
-      fd.append('phone', phone.trim());
       fd.append(
         'label',
         JSON.stringify({
@@ -381,31 +368,6 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
                       required
                     />
                   </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="owner-email">Correo electrónico</Label>
-                  <Input
-                    id="owner-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    maxLength={150}
-                    placeholder="carlos@ejemplo.com"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="owner-phone">Teléfono</Label>
-                  <Input
-                    id="owner-phone"
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    maxLength={30}
-                    placeholder="+52 55 1234 5678"
-                    className="font-mono tabular-nums"
-                  />
                 </div>
 
                 <OwnerCardThemeControl

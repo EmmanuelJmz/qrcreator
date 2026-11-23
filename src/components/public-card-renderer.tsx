@@ -7,7 +7,6 @@ import {
   FileImage,
   GripHorizontal,
   HeartPulse,
-  Mail,
   MapPin,
   Move,
   Phone,
@@ -440,49 +439,6 @@ export function PublicCardView({
                           {emg.organDonor === 'yes' ? 'Sí, es donador' : 'No es donador'}
                         </p>
                       </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Direct Owner Phone & Email */}
-                {(card.phone || card.email) && (
-                  <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 pt-5 border-t ${palette.divider}`}>
-                    {card.phone && (
-                      <a
-                        href={interactive ? undefined : `tel:${card.phone}`}
-                        onClick={interactive ? (e) => e.preventDefault() : undefined}
-                        className={`min-h-[52px] flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${palette.contactBox}`}
-                      >
-                        <Phone
-                          className="h-5 w-5 shrink-0"
-                          style={{ color: theme.headerColor }}
-                        />
-                        <div className="min-w-0">
-                          <p className={`text-xs ${palette.muted}`}>Teléfono del titular</p>
-                          <p className={`text-sm font-semibold font-mono tabular-nums truncate ${palette.contactValue}`}>
-                            {card.phone}
-                          </p>
-                        </div>
-                      </a>
-                    )}
-
-                    {card.email && (
-                      <a
-                        href={interactive ? undefined : `mailto:${card.email}`}
-                        onClick={interactive ? (e) => e.preventDefault() : undefined}
-                        className={`min-h-[52px] flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${palette.contactBox}`}
-                      >
-                        <Mail
-                          className="h-5 w-5 shrink-0"
-                          style={{ color: theme.headerColor }}
-                        />
-                        <div className="min-w-0">
-                          <p className={`text-xs ${palette.muted}`}>Correo electrónico</p>
-                          <p className={`text-sm font-semibold truncate ${palette.contactValue}`}>
-                            {card.email}
-                          </p>
-                        </div>
-                      </a>
                     )}
                   </div>
                 )}

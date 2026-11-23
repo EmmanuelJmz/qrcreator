@@ -358,7 +358,7 @@ export function OwnersModule({
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar por nombre, apellidos, correo o teléfono..."
+            placeholder="Buscar por nombre o apellidos..."
             className="pl-9"
             aria-label="Buscar propietarios"
           />
@@ -497,8 +497,7 @@ export function OwnersModule({
                     />
                   </th>
                   <th className="py-3 px-4">Nombre completo</th>
-                  <th className="py-3 px-4">Correo electrónico</th>
-                  <th className="py-3 px-4">Teléfono</th>
+                  <th className="py-3 px-4">Ficha médica</th>
                   <th className="py-3 px-4 text-right">Documentos</th>
                   <th className="py-3 px-4 text-right">Escaneos</th>
                   <th className="py-3 px-4">Estado</th>
@@ -539,11 +538,12 @@ export function OwnersModule({
                       <td className="py-3 px-4 font-medium text-slate-900 whitespace-nowrap">
                         {owner.fullName}
                       </td>
-                      <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                        {owner.email || <span className="text-slate-400">No registrado</span>}
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 font-mono tabular-nums whitespace-nowrap">
-                        {owner.phone || <span className="text-slate-400 font-sans">No registrado</span>}
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        {owner.hasEmergencyProfile ? (
+                          <span className="text-emerald-700 font-medium">Completa</span>
+                        ) : (
+                          <span className="text-slate-400">Sin datos</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-right font-mono tabular-nums text-slate-700 whitespace-nowrap">
                         {owner.documentCount} / 5

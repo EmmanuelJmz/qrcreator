@@ -220,8 +220,8 @@ export const apiClient = {
     payload: {
       firstName: string;
       lastName: string;
-      email: string;
-      phone: string;
+      email?: string;
+      phone?: string;
       cardThemeOverride?: OwnerCardThemeOverride | null;
       emergencyProfile?: OwnerEmergencyProfile | null;
     },
