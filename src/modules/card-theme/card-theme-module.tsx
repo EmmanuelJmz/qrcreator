@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
+  Crop,
   Globe,
   Monitor,
   RotateCcw,
@@ -11,6 +12,7 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react';
+import { CircularLogoCropperDialog } from '@/src/components/circular-logo-cropper-dialog';
 import { PublicCardView } from '@/src/components/public-card-renderer';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
@@ -33,7 +35,7 @@ import {
   DEFAULT_PUBLIC_CARD_THEME,
   HEADER_COLOR_PRESETS,
   mergeThemeWithOwnerOverride,
-  type LogoShape,
+  normalizePublicCardTheme,
   type PageBackgroundMode,
   type PublicCardTheme,
 } from '@/src/lib/public-card-theme';
@@ -57,15 +59,81 @@ const PREVIEW_SAMPLE_CARD: PublicCardData = {
 };
 
 const GLOBAL_SCOPE_VALUE = '__global__';
+const DRAFT_STORAGE_KEY = 'cascoqr_card_theme_drafts_v1';
 type ControlTab = 'header' | 'logo' | 'texts';
 
 interface CardThemeModuleProps {
   initialOwnerId?: string | null;
 }
 
+function readStoredDrafts(): Record<string, PublicCardTheme> {
+  try {
+    const raw = window.sessionStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== 'object') return {};
+    const result: Record<string, PublicCardTheme> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (value && typeof value === 'object') {
+        result[key] = normalizePublicCardTheme({
+          ...(value as Record<string, unknown>),
+          logoShape: 'circle',
+        });
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function writeStoredDrafts(drafts: Record<string, PublicCardTheme>) {
+  try {
+    if (Object.keys(drafts).length === 0) {
+      window.sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+    } else {
+      window.sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(drafts));
+    }
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+function enforceCircularTheme(t: PublicCardTheme): PublicCardTheme {
+  return { ...t, logoShape: 'circle' };
+}
+
+function themesDiffer(a: PublicCardTheme, b: PublicCardTheme): boolean {
+  return (
+    a.brandName !== b.brandName ||
+    a.subtitleText !== b.subtitleText ||
+    a.showBrandName !== b.showBrandName ||
+    a.showSubtitle !== b.showSubtitle ||
+    a.headerColor !== b.headerColor ||
+    a.headerHeight !== b.headerHeight ||
+    a.logoVisible !== b.logoVisible ||
+    a.logoSize !== b.logoSize ||
+    a.logoX !== b.logoX ||
+    a.logoY !== b.logoY ||
+    a.pageBg !== b.pageBg ||
+    a.showLabelPreviewButton !== b.showLabelPreviewButton ||
+    a.footerNote !== b.footerNote
+  );
+}
+
 export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
   const [globalTheme, setGlobalTheme] = useState<PublicCardTheme>(DEFAULT_PUBLIC_CARD_THEME);
-  const [theme, setTheme] = useState<PublicCardTheme>(DEFAULT_PUBLIC_CARD_THEME);
+  const globalThemeRef = useRef<PublicCardTheme>(DEFAULT_PUBLIC_CARD_THEME);
+  const savedScopeThemeRef = useRef<PublicCardTheme>(DEFAULT_PUBLIC_CARD_THEME);
+  const draftsByScopeRef = useRef<Record<string, PublicCardTheme>>(readStoredDrafts());
+
+  const [theme, setTheme] = useState<PublicCardTheme>(() => {
+    const initialScope = initialOwnerId || GLOBAL_SCOPE_VALUE;
+    return draftsByScopeRef.current[initialScope] ?? DEFAULT_PUBLIC_CARD_THEME;
+  });
+  const [savedThemeSnapshot, setSavedThemeSnapshot] = useState<PublicCardTheme>(
+    DEFAULT_PUBLIC_CARD_THEME,
+  );
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [migrationPending, setMigrationPending] = useState(false);
 
@@ -78,6 +146,12 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
   const [previewViewport, setPreviewViewport] = useState<'mobile' | 'desktop'>('mobile');
   const [activeTab, setActiveTab] = useState<ControlTab>('header');
 
+  const [cropSource, setCropSource] = useState<{
+    url: string;
+    fileName: string;
+    isObjectUrl: boolean;
+  } | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -85,10 +159,45 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
   const [feedback, setFeedback] = useState<string | null>(null);
 
   useEffect(() => {
+    globalThemeRef.current = globalTheme;
+  }, [globalTheme]);
+
+  useEffect(() => {
     if (initialOwnerId) {
       setScopeId(initialOwnerId);
     }
   }, [initialOwnerId]);
+
+  useEffect(() => {
+    return () => {
+      if (cropSource?.isObjectUrl) {
+        URL.revokeObjectURL(cropSource.url);
+      }
+    };
+  }, [cropSource]);
+
+  const updateDraftTheme = useCallback(
+    (updater: (prev: PublicCardTheme) => PublicCardTheme) => {
+      setTheme((prev) => {
+        const next = enforceCircularTheme(updater(prev));
+        if (themesDiffer(next, savedScopeThemeRef.current)) {
+          draftsByScopeRef.current[scopeId] = next;
+        } else {
+          delete draftsByScopeRef.current[scopeId];
+        }
+        writeStoredDrafts(draftsByScopeRef.current);
+        return next;
+      });
+    },
+    [scopeId],
+  );
+
+  const clearDraftForScope = useCallback((targetScope: string) => {
+    if (draftsByScopeRef.current[targetScope]) {
+      delete draftsByScopeRef.current[targetScope];
+      writeStoredDrafts(draftsByScopeRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,8 +210,9 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
           apiClient.listOwners().catch(() => ({ owners: [] as OwnerSummary[] })),
         ]);
         if (cancelled) return;
-        setGlobalTheme(themeRes.theme);
-        setTheme(themeRes.theme);
+        const normalizedGlobal = enforceCircularTheme(themeRes.theme);
+        globalThemeRef.current = normalizedGlobal;
+        setGlobalTheme(normalizedGlobal);
         setLogoUrl(themeRes.logoUrl);
         setMigrationPending(Boolean(themeRes.migrationPending));
         setOwners(ownersRes.owners);
@@ -128,7 +238,15 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
     if (loading) return;
 
     if (scopeId === GLOBAL_SCOPE_VALUE) {
-      setTheme(globalTheme);
+      const saved = enforceCircularTheme(globalThemeRef.current);
+      savedScopeThemeRef.current = saved;
+      setSavedThemeSnapshot(saved);
+      const draft = draftsByScopeRef.current[GLOBAL_SCOPE_VALUE];
+      setTheme(
+        draft
+          ? enforceCircularTheme({ ...draft, hasCustomLogo: saved.hasCustomLogo })
+          : saved,
+      );
       setOwnerHasCustom(false);
       setPreviewCard(PREVIEW_SAMPLE_CARD);
       return;
@@ -142,8 +260,20 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
         const detail = await apiClient.getOwner(scopeId);
         if (cancelled) return;
         const override = detail.owner.cardThemeOverride ?? null;
+        const currentGlobal = globalThemeRef.current;
+        const merged = enforceCircularTheme(
+          mergeThemeWithOwnerOverride(currentGlobal, override),
+        );
+        savedScopeThemeRef.current = merged;
+        setSavedThemeSnapshot(merged);
         setOwnerHasCustom(Boolean(override && override.useGlobalTheme === false));
-        setTheme(mergeThemeWithOwnerOverride(globalTheme, override));
+
+        const draft = draftsByScopeRef.current[scopeId];
+        setTheme(
+          draft
+            ? enforceCircularTheme({ ...draft, hasCustomLogo: merged.hasCustomLogo })
+            : merged,
+        );
         setPreviewCard({
           fullName: detail.owner.fullName,
           email: detail.owner.email,
@@ -174,7 +304,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
     return () => {
       cancelled = true;
     };
-  }, [scopeId, globalTheme, loading]);
+  }, [scopeId, loading]);
 
   const isGlobalScope = scopeId === GLOBAL_SCOPE_VALUE;
   const activeOwnerSummary = !isGlobalScope
@@ -184,6 +314,11 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
   const scopeOptions = [GLOBAL_SCOPE_VALUE, ...owners.map((o) => o.id)];
   const currentScopeIdx = scopeOptions.indexOf(scopeId);
 
+  const hasUnsavedChanges = useMemo(
+    () => themesDiffer(theme, savedThemeSnapshot),
+    [theme, savedThemeSnapshot],
+  );
+
   const handleStepScope = (delta: number) => {
     if (scopeOptions.length <= 1) return;
     const nextIdx =
@@ -192,26 +327,42 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
     setScopeId(scopeOptions[nextIdx]);
   };
 
+  const handleDiscardDraft = () => {
+    clearDraftForScope(scopeId);
+    setTheme(savedScopeThemeRef.current);
+    setFeedback(null);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError(null);
     setFeedback(null);
     try {
+      const circularTheme = enforceCircularTheme(theme);
       if (isGlobalScope) {
-        const { hasCustomLogo: _ignored, ...payload } = theme;
+        const { hasCustomLogo: _ignored, ...payload } = circularTheme;
         const res = await apiClient.updateCardTheme(payload);
-        setGlobalTheme(res.theme);
-        setTheme(res.theme);
+        const saved = enforceCircularTheme(res.theme);
+        globalThemeRef.current = saved;
+        savedScopeThemeRef.current = saved;
+        setGlobalTheme(saved);
+        setSavedThemeSnapshot(saved);
+        setTheme(saved);
         setLogoUrl(res.logoUrl);
         setMigrationPending(false);
+        clearDraftForScope(GLOBAL_SCOPE_VALUE);
         setFeedback(
           'Diseño global guardado. Todas las fichas sin diseño propio ya reflejan estos cambios.',
         );
       } else {
-        const { hasCustomLogo: _ignored, ...payload } = theme;
+        const { hasCustomLogo: _ignored, ...payload } = circularTheme;
         const override = buildOwnerOverrideFromTheme(payload);
         await apiClient.updateOwnerCardTheme(scopeId, override);
+        savedScopeThemeRef.current = circularTheme;
+        setSavedThemeSnapshot(circularTheme);
+        setTheme(circularTheme);
         setOwnerHasCustom(true);
+        clearDraftForScope(scopeId);
         setOwners((prev) =>
           prev.map((o) =>
             o.id === scopeId ? { ...o, hasCustomCardTheme: true } : o,
@@ -237,8 +388,12 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
     setFeedback(null);
     try {
       await apiClient.updateOwnerCardTheme(scopeId, null);
+      const nextGlobal = enforceCircularTheme(globalThemeRef.current);
+      savedScopeThemeRef.current = nextGlobal;
+      setSavedThemeSnapshot(nextGlobal);
       setOwnerHasCustom(false);
-      setTheme(globalTheme);
+      setTheme(nextGlobal);
+      clearDraftForScope(scopeId);
       setOwners((prev) =>
         prev.map((o) =>
           o.id === scopeId ? { ...o, hasCustomCardTheme: false } : o,
@@ -258,34 +413,77 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
     }
   };
 
-  const handleUploadLogo = async (file: File | null) => {
+  const handleSelectLogoFile = (file: File | null) => {
     if (!file) return;
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
     if (!['jpg', 'jpeg', 'png'].includes(ext)) {
       setError('El logo debe ser una imagen JPG, JPEG o PNG.');
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      setError('El logo no puede exceder 2 MB.');
+    if (file.size > 4 * 1024 * 1024) {
+      setError('La imagen seleccionada no puede exceder 4 MB.');
       return;
     }
 
+    setError(null);
+    const objectUrl = URL.createObjectURL(file);
+    setCropSource({
+      url: objectUrl,
+      fileName: file.name,
+      isObjectUrl: true,
+    });
+  };
+
+  const handleOpenCropExistingLogo = () => {
+    if (!logoUrl) return;
+    setError(null);
+    setCropSource({
+      url: logoUrl,
+      fileName: 'logo-actual.png',
+      isObjectUrl: false,
+    });
+  };
+
+  const handleUploadCroppedLogo = async (croppedFile: File) => {
     setUploadingLogo(true);
     setError(null);
     setFeedback(null);
     try {
       const fd = new FormData();
-      fd.append('logo', file);
+      fd.append('logo', croppedFile);
       const res = await apiClient.uploadCardLogo(fd);
-      setGlobalTheme(res.theme);
-      setTheme((prev) => ({
-        ...prev,
-        logoVisible: true,
+
+      // Update global/saved logo state WITHOUT wiping unsaved theme draft edits
+      const nextGlobal = enforceCircularTheme({
+        ...globalThemeRef.current,
         hasCustomLogo: res.theme.hasCustomLogo,
-      }));
+        logoVisible: true,
+      });
+      globalThemeRef.current = nextGlobal;
+      savedScopeThemeRef.current = enforceCircularTheme({
+        ...savedScopeThemeRef.current,
+        hasCustomLogo: res.theme.hasCustomLogo,
+      });
+      setGlobalTheme(nextGlobal);
+      setSavedThemeSnapshot(savedScopeThemeRef.current);
       setLogoUrl(res.logoUrl);
       setMigrationPending(false);
-      setFeedback('Logo personalizado subido y aplicado.');
+
+      for (const key of Object.keys(draftsByScopeRef.current)) {
+        draftsByScopeRef.current[key] = enforceCircularTheme({
+          ...draftsByScopeRef.current[key],
+          hasCustomLogo: res.theme.hasCustomLogo,
+        });
+      }
+      updateDraftTheme((prev) => ({
+        ...prev,
+        logoVisible: true,
+        logoShape: 'circle',
+        hasCustomLogo: res.theme.hasCustomLogo,
+      }));
+
+      setCropSource(null);
+      setFeedback('Logo circular recortado y aplicado. Recuerda guardar si hiciste otros cambios.');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo subir el logo.');
     } finally {
@@ -299,9 +497,26 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
     setFeedback(null);
     try {
       const res = await apiClient.deleteCardLogo();
-      setGlobalTheme(res.theme);
-      setTheme((prev) => ({ ...prev, hasCustomLogo: false }));
+      const nextGlobal = enforceCircularTheme({
+        ...globalThemeRef.current,
+        hasCustomLogo: res.theme.hasCustomLogo,
+      });
+      globalThemeRef.current = nextGlobal;
+      savedScopeThemeRef.current = enforceCircularTheme({
+        ...savedScopeThemeRef.current,
+        hasCustomLogo: false,
+      });
+      setGlobalTheme(nextGlobal);
+      setSavedThemeSnapshot(savedScopeThemeRef.current);
       setLogoUrl(null);
+
+      for (const key of Object.keys(draftsByScopeRef.current)) {
+        draftsByScopeRef.current[key] = enforceCircularTheme({
+          ...draftsByScopeRef.current[key],
+          hasCustomLogo: false,
+        });
+      }
+      updateDraftTheme((prev) => ({ ...prev, hasCustomLogo: false, logoShape: 'circle' }));
       setFeedback('Se restauró el ícono de casco predeterminado.');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo quitar el logo.');
@@ -312,8 +527,9 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
 
   const handleResetDefaults = () => {
     setFeedback(null);
-    setTheme((prev) => ({
-      ...(isGlobalScope ? DEFAULT_PUBLIC_CARD_THEME : globalTheme),
+    updateDraftTheme((prev) => ({
+      ...(isGlobalScope ? DEFAULT_PUBLIC_CARD_THEME : globalThemeRef.current),
+      logoShape: 'circle',
       hasCustomLogo: prev.hasCustomLogo,
     }));
   };
@@ -341,6 +557,18 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {hasUnsavedChanges && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleDiscardDraft}
+              disabled={saving}
+              className="text-slate-600"
+            >
+              Descartar cambios
+            </Button>
+          )}
           {!isGlobalScope && ownerHasCustom ? (
             <Button
               type="button"
@@ -433,19 +661,26 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
           </div>
         </div>
 
-        <div className="text-xs text-slate-600 sm:text-right">
-          {isGlobalScope ? (
-            <span>
-              Editando el <strong>diseño maestro</strong> para quienes usan el global.
-            </span>
-          ) : ownerHasCustom ? (
-            <span className="text-blue-700 font-medium">
-              Ficha individual personalizada ({activeOwnerSummary?.fullName})
-            </span>
-          ) : (
-            <span>
-              Actualmente hereda el diseño global. Al guardar se volverá individual.
-            </span>
+        <div className="text-xs text-slate-600 sm:text-right space-y-0.5">
+          <div>
+            {isGlobalScope ? (
+              <span>
+                Editando el <strong>diseño maestro</strong> para quienes usan el global.
+              </span>
+            ) : ownerHasCustom ? (
+              <span className="text-blue-700 font-medium">
+                Ficha individual personalizada ({activeOwnerSummary?.fullName})
+              </span>
+            ) : (
+              <span>
+                Actualmente hereda el diseño global. Al guardar se volverá individual.
+              </span>
+            )}
+          </div>
+          {hasUnsavedChanges && (
+            <p className="text-amber-700 font-medium">
+              Cambios pendientes por guardar
+            </p>
           )}
         </div>
       </div>
@@ -534,7 +769,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                   theme={theme}
                   logoUrl={logoUrl}
                   interactive
-                  onThemeChange={setTheme}
+                  onThemeChange={updateDraftTheme}
                 />
               </div>
             )}
@@ -550,7 +785,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
             {(
               [
                 { id: 'header', label: 'Encabezado' },
-                { id: 'logo', label: 'Logo libre' },
+                { id: 'logo', label: 'Logo circular' },
                 { id: 'texts', label: 'Textos y extras' },
               ] as const
             ).map((tab) => (
@@ -591,7 +826,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                           key={preset.hex}
                           type="button"
                           onClick={() =>
-                            setTheme((prev) => ({ ...prev, headerColor: preset.hex }))
+                            updateDraftTheme((prev) => ({ ...prev, headerColor: preset.hex }))
                           }
                           title={preset.label}
                           className={`h-9 rounded-lg border flex items-center justify-center gap-1.5 px-2 text-[11px] font-medium cursor-pointer transition-all ${
@@ -617,7 +852,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                       type="color"
                       value={theme.headerColor}
                       onChange={(e) =>
-                        setTheme((prev) => ({
+                        updateDraftTheme((prev) => ({
                           ...prev,
                           headerColor: e.target.value.toUpperCase(),
                         }))
@@ -646,7 +881,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                     step={2}
                     value={theme.headerHeight}
                     onChange={(e) =>
-                      setTheme((prev) => ({
+                      updateDraftTheme((prev) => ({
                         ...prev,
                         headerHeight: Number(e.target.value),
                       }))
@@ -663,7 +898,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                         key={opt.val}
                         type="button"
                         onClick={() =>
-                          setTheme((prev) => ({ ...prev, headerHeight: opt.val }))
+                          updateDraftTheme((prev) => ({ ...prev, headerHeight: opt.val }))
                         }
                         className="flex-1 rounded-md border border-slate-200 px-2 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
                       >
@@ -687,7 +922,9 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                       <button
                         key={bg.id}
                         type="button"
-                        onClick={() => setTheme((prev) => ({ ...prev, pageBg: bg.id }))}
+                        onClick={() =>
+                          updateDraftTheme((prev) => ({ ...prev, pageBg: bg.id }))
+                        }
                         className={`rounded-lg border px-3 py-2 text-xs font-medium text-left flex items-center gap-2 cursor-pointer transition-colors ${
                           theme.pageBg === bg.id
                             ? 'border-blue-600 bg-blue-50/70 text-blue-700 ring-1 ring-blue-600'
@@ -716,7 +953,10 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                     type="checkbox"
                     checked={theme.logoVisible}
                     onChange={(e) =>
-                      setTheme((prev) => ({ ...prev, logoVisible: e.target.checked }))
+                      updateDraftTheme((prev) => ({
+                        ...prev,
+                        logoVisible: e.target.checked,
+                      }))
                     }
                     className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
                   />
@@ -726,7 +966,10 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                   <Label>
                     Imagen del logo {isGlobalScope ? '' : '(compartida globalmente)'}
                   </Label>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs text-slate-500">
+                    Siempre se recorta y muestra en formato circular. Al subir una imagen podrás recortarla, centrarla y hacerla más grande o más chica.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
                     <label
                       className={`inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 hover:bg-slate-50 cursor-pointer ${
                         uploadingLogo ? 'opacity-50 pointer-events-none' : ''
@@ -737,8 +980,8 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                         {uploadingLogo
                           ? 'Subiendo...'
                           : theme.hasCustomLogo
-                            ? 'Cambiar logo (PNG/JPG)'
-                            : 'Subir logo propio'}
+                            ? 'Cambiar y recortar logo'
+                            : 'Subir y recortar logo'}
                       </span>
                       <input
                         type="file"
@@ -746,11 +989,24 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                         className="sr-only"
                         disabled={uploadingLogo}
                         onChange={(e) => {
-                          void handleUploadLogo(e.target.files?.[0] ?? null);
+                          handleSelectLogoFile(e.target.files?.[0] ?? null);
                           e.target.value = '';
                         }}
                       />
                     </label>
+
+                    {theme.hasCustomLogo && logoUrl && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={uploadingLogo}
+                        onClick={handleOpenCropExistingLogo}
+                      >
+                        <Crop className="h-3.5 w-3.5" />
+                        <span>Recortar actual</span>
+                      </Button>
+                    )}
 
                     {theme.hasCustomLogo && (
                       <Button
@@ -771,37 +1027,8 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                 {theme.logoVisible && (
                   <>
                     <div className="space-y-2 pt-2 border-t border-slate-100">
-                      <Label>Marco del logo</Label>
-                      <div className="grid grid-cols-4 gap-1.5">
-                        {(
-                          [
-                            { id: 'circle', label: 'Círculo' },
-                            { id: 'rounded', label: 'Suave' },
-                            { id: 'square', label: 'Cuadro' },
-                            { id: 'none', label: 'Sin fondo' },
-                          ] as Array<{ id: LogoShape; label: string }>
-                        ).map((s) => (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() =>
-                              setTheme((prev) => ({ ...prev, logoShape: s.id }))
-                            }
-                            className={`rounded-lg border py-2 text-xs font-medium cursor-pointer transition-colors ${
-                              theme.logoShape === s.id
-                                ? 'border-blue-600 bg-blue-50/70 text-blue-700 ring-1 ring-blue-600'
-                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                            }`}
-                          >
-                            {s.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 pt-2 border-t border-slate-100">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="logo-size-range">Tamaño del logo</Label>
+                        <Label htmlFor="logo-size-range">Tamaño del círculo en la ficha</Label>
                         <span className="text-xs font-mono tabular-nums text-slate-700">
                           {theme.logoSize} px
                         </span>
@@ -814,13 +1041,31 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                         step={2}
                         value={theme.logoSize}
                         onChange={(e) =>
-                          setTheme((prev) => ({
+                          updateDraftTheme((prev) => ({
                             ...prev,
                             logoSize: Number(e.target.value),
                           }))
                         }
                         className="w-full accent-blue-600 cursor-pointer"
                       />
+                      <div className="flex gap-1.5">
+                        {[
+                          { label: 'Chico (76px)', val: 76 },
+                          { label: 'Mediano (112px)', val: 112 },
+                          { label: 'Grande (152px)', val: 152 },
+                        ].map((s) => (
+                          <button
+                            key={s.val}
+                            type="button"
+                            onClick={() =>
+                              updateDraftTheme((prev) => ({ ...prev, logoSize: s.val }))
+                            }
+                            className="flex-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+                          >
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="space-y-3 pt-2 border-t border-slate-100">
@@ -843,7 +1088,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                           step={1}
                           value={theme.logoX}
                           onChange={(e) =>
-                            setTheme((prev) => ({
+                            updateDraftTheme((prev) => ({
                               ...prev,
                               logoX: Number(e.target.value),
                             }))
@@ -860,7 +1105,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                               key={p.val}
                               type="button"
                               onClick={() =>
-                                setTheme((prev) => ({ ...prev, logoX: p.val }))
+                                updateDraftTheme((prev) => ({ ...prev, logoX: p.val }))
                               }
                               className="flex-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
                             >
@@ -885,7 +1130,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                           step={1}
                           value={theme.logoY}
                           onChange={(e) =>
-                            setTheme((prev) => ({
+                            updateDraftTheme((prev) => ({
                               ...prev,
                               logoY: Number(e.target.value),
                             }))
@@ -902,7 +1147,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                               key={p.val}
                               type="button"
                               onClick={() =>
-                                setTheme((prev) => ({ ...prev, logoY: p.val }))
+                                updateDraftTheme((prev) => ({ ...prev, logoY: p.val }))
                               }
                               className="flex-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
                             >
@@ -927,7 +1172,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                         type="checkbox"
                         checked={theme.showBrandName}
                         onChange={(e) =>
-                          setTheme((prev) => ({
+                          updateDraftTheme((prev) => ({
                             ...prev,
                             showBrandName: e.target.checked,
                           }))
@@ -941,7 +1186,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                     id="brand-name-input"
                     value={theme.brandName}
                     onChange={(e) =>
-                      setTheme((prev) => ({ ...prev, brandName: e.target.value }))
+                      updateDraftTheme((prev) => ({ ...prev, brandName: e.target.value }))
                     }
                     maxLength={60}
                     placeholder="CascoQR"
@@ -956,7 +1201,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                         type="checkbox"
                         checked={theme.showSubtitle}
                         onChange={(e) =>
-                          setTheme((prev) => ({
+                          updateDraftTheme((prev) => ({
                             ...prev,
                             showSubtitle: e.target.checked,
                           }))
@@ -970,7 +1215,10 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                     id="subtitle-text-input"
                     value={theme.subtitleText}
                     onChange={(e) =>
-                      setTheme((prev) => ({ ...prev, subtitleText: e.target.value }))
+                      updateDraftTheme((prev) => ({
+                        ...prev,
+                        subtitleText: e.target.value,
+                      }))
                     }
                     maxLength={80}
                     placeholder="Ficha de identificación"
@@ -985,7 +1233,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                     type="checkbox"
                     checked={theme.showLabelPreviewButton}
                     onChange={(e) =>
-                      setTheme((prev) => ({
+                      updateDraftTheme((prev) => ({
                         ...prev,
                         showLabelPreviewButton: e.target.checked,
                       }))
@@ -1000,7 +1248,10 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                     id="footer-note-input"
                     value={theme.footerNote}
                     onChange={(e) =>
-                      setTheme((prev) => ({ ...prev, footerNote: e.target.value }))
+                      updateDraftTheme((prev) => ({
+                        ...prev,
+                        footerNote: e.target.value,
+                      }))
                     }
                     maxLength={200}
                     placeholder="Ej. En caso de emergencia o extravío, contacta al titular."
@@ -1011,6 +1262,15 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
           </div>
         </div>
       </div>
+
+      <CircularLogoCropperDialog
+        open={Boolean(cropSource)}
+        imageSrc={cropSource?.url ?? null}
+        fileName={cropSource?.fileName}
+        submitting={uploadingLogo}
+        onCancel={() => !uploadingLogo && setCropSource(null)}
+        onConfirm={handleUploadCroppedLogo}
+      />
     </div>
   );
 }

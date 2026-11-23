@@ -199,13 +199,7 @@ export function PublicCardView({
   };
 
   const logoFrameClass =
-    theme.logoShape === 'circle'
-      ? 'rounded-full bg-white shadow-lg border border-slate-200/80 ring-4 ring-white/90'
-      : theme.logoShape === 'rounded'
-        ? 'rounded-2xl bg-white shadow-lg border border-slate-200/80 ring-4 ring-white/90'
-        : theme.logoShape === 'square'
-          ? 'rounded-none bg-white shadow-lg border border-slate-200/80 ring-4 ring-white/90'
-          : 'bg-transparent';
+    'rounded-full bg-white shadow-lg border border-slate-200/80 ring-4 ring-white/90';
 
   return (
     <div className={`${interactive ? 'min-h-full' : 'min-h-screen'} ${palette.root}`}>
@@ -263,7 +257,8 @@ export function PublicCardView({
               <img
                 src={logoUrl}
                 alt={theme.brandName || 'Logo'}
-                className="w-full h-full object-contain p-1.5 pointer-events-none select-none"
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover pointer-events-none select-none"
                 draggable={false}
               />
             ) : (
