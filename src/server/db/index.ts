@@ -132,6 +132,7 @@ export interface PublicQueryExecutor {
   recordScanByHash?(tokenHash: string): Promise<void>;
   getCardTheme?(): Promise<PublicCardThemeSqlRow | null>;
   getOwnerThemeOverrideByHash?(tokenHash: string): Promise<unknown | null>;
+  getOwnerEmergencyByHash?(tokenHash: string): Promise<unknown | null>;
 }
 
 let customPublicExecutorForTests: PublicQueryExecutor | null = null;
@@ -186,6 +187,14 @@ export function getPublicQueryExecutor(): PublicQueryExecutor {
         [tokenHash],
       );
       return result.rows[0]?.override ?? null;
+    },
+    async getOwnerEmergencyByHash(tokenHash: string) {
+      const pool = getPublicPool();
+      const result = await pool.query<{ emergency: unknown }>(
+        'SELECT public_owner_emergency_by_hash($1::char(64)) AS emergency',
+        [tokenHash],
+      );
+      return result.rows[0]?.emergency ?? null;
     },
   };
 }

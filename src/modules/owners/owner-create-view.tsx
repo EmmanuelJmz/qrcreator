@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Plus, Save, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Upload } from 'lucide-react';
 import { OwnerCardThemeControl } from '@/src/components/owner-card-theme-control';
+import { OwnerEmergencyFields } from '@/src/components/owner-emergency-fields';
 import { QRLabelCanvas } from '@/src/components/qr-label-canvas';
 import { QrCoordinateInputs } from '@/src/components/qr-coordinate-inputs';
 import { QrStyleSelector } from '@/src/components/qr-style-selector';
@@ -16,6 +17,12 @@ import {
   SelectValue,
 } from '@/src/components/ui/select';
 import { apiClient, ApiError, type TemplateItem } from '@/src/lib/api-client';
+import {
+  createEmptyEmergencyProfile,
+  hasEmergencyProfileData,
+  normalizeEmergencyProfile,
+  type OwnerEmergencyProfile,
+} from '@/src/lib/emergency-profile';
 import type { OwnerCardThemeOverride } from '@/src/lib/public-card-theme';
 import {
   clampSquareLabelGeometry,
@@ -59,6 +66,10 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
   const [qrStyle, setQrStyle] = useState<QrStyle>('classic');
   const [geometry, setGeometry] = useState<LabelGeometry>({ x: 65, y: 20, width: 20, height: 20 });
   const [cardThemeOverride, setCardThemeOverride] = useState<OwnerCardThemeOverride | null>(null);
+  const [emergencyProfile, setEmergencyProfile] = useState<OwnerEmergencyProfile>(
+    createEmptyEmergencyProfile,
+  );
+  const [leftTab, setLeftTab] = useState<'general' | 'emergency'>('general');
 
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -192,6 +203,16 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
       setError('Formato de teléfono inválido.');
       return;
     }
+    if (
+      (emergencyProfile.contact1.phone.trim() &&
+        !PHONE_REGEX.test(emergencyProfile.contact1.phone.trim())) ||
+      (emergencyProfile.contact2.phone.trim() &&
+        !PHONE_REGEX.test(emergencyProfile.contact2.phone.trim()))
+    ) {
+      setLeftTab('emergency');
+      setError('El teléfono de alguno de los contactos de emergencia tiene formato inválido.');
+      return;
+    }
 
     if (!selectedTemplateId || !activeTemplate) {
       setError('Debes seleccionar una plantilla para generar la etiqueta QR.');
@@ -234,6 +255,10 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
       );
       if (cardThemeOverride && cardThemeOverride.useGlobalTheme === false) {
         fd.append('cardThemeOverride', JSON.stringify(cardThemeOverride));
+      }
+      const normalizedEmergency = normalizeEmergencyProfile(emergencyProfile);
+      if (normalizedEmergency) {
+        fd.append('emergencyProfile', JSON.stringify(normalizedEmergency));
       }
       fd.append(
         'documentVisibilities',
@@ -298,148 +323,184 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-        {/* Left: Owner Info & Documents */}
-        <div className="xl:col-span-5 space-y-6">
-          <section className="rounded-xl border border-slate-200 bg-white p-6 space-y-4">
-            <h3 className="text-base font-semibold text-slate-900">
-              Datos del propietario
-            </h3>
+        {/* Left: Owner Info, Emergency Profile & Documents */}
+        <div className="xl:col-span-5 space-y-4">
+          <div className="grid grid-cols-2 rounded-xl border border-slate-200 bg-slate-100 p-1 gap-1">
+            <button
+              type="button"
+              onClick={() => setLeftTab('general')}
+              className={`rounded-lg py-2 px-3 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                leftTab === 'general'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Datos y documentos
+            </button>
+            <button
+              type="button"
+              onClick={() => setLeftTab('emergency')}
+              className={`rounded-lg py-2 px-3 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                leftTab === 'emergency'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Emergencia y médico{hasEmergencyProfileData(emergencyProfile) ? ' · ✓' : ''}
+            </button>
+          </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="owner-first-name">Nombre(s) *</Label>
-                <Input
-                  id="owner-first-name"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  maxLength={100}
-                  placeholder="Ej. Carlos Alberto"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="owner-last-name">Apellidos *</Label>
-                <Input
-                  id="owner-last-name"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  maxLength={100}
-                  placeholder="Ej. Mendoza Ruiz"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="owner-email">Correo electrónico</Label>
-              <Input
-                id="owner-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                maxLength={150}
-                placeholder="carlos@ejemplo.com"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="owner-phone">Teléfono</Label>
-              <Input
-                id="owner-phone"
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                maxLength={30}
-                placeholder="+52 55 1234 5678"
-                className="font-mono tabular-nums"
-              />
-            </div>
-
-            <OwnerCardThemeControl
-              value={cardThemeOverride}
-              onChange={setCardThemeOverride}
-              disabled={saving}
-            />
-          </section>
-
-          <section className="rounded-xl border border-slate-200 bg-white p-6 space-y-4">
-            <div className="flex items-center justify-between gap-2">
-              <div>
+          {leftTab === 'general' ? (
+            <>
+              <section className="rounded-xl border border-slate-200 bg-white p-6 space-y-4">
                 <h3 className="text-base font-semibold text-slate-900">
-                  Documentos ({draftDocs.length} / {MAX_DOCS})
+                  Datos del propietario
                 </h3>
-                <p className="text-xs text-slate-500">
-                  Opcional. Formatos JPG, JPEG o PNG de hasta 4 MB cada uno.
-                </p>
-              </div>
 
-              <label
-                className={`inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 hover:bg-slate-50 cursor-pointer ${
-                  draftDocs.length >= MAX_DOCS ? 'opacity-50 pointer-events-none' : ''
-                }`}
-              >
-                <Upload className="h-3.5 w-3.5" />
-                <span>Agregar</span>
-                <input
-                  type="file"
-                  accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                  multiple
-                  className="sr-only"
-                  disabled={draftDocs.length >= MAX_DOCS}
-                  onChange={(e) => {
-                    handleAddFiles(e.target.files);
-                    e.target.value = '';
-                  }}
-                />
-              </label>
-            </div>
-
-            {draftDocs.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-xs text-slate-500">
-                Sin documentos adjuntos. Los documentos marcados como privados nunca aparecerán en la ficha pública.
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
-                {draftDocs.map((doc) => (
-                  <div key={doc.id} className="p-3.5 space-y-2.5">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={doc.previewUrl}
-                        alt={doc.file.name}
-                        className="h-12 w-12 rounded object-cover border border-slate-200 shrink-0"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-slate-900 truncate">
-                          {doc.file.name}
-                        </p>
-                        <p className="text-xs text-slate-500 font-mono tabular-nums">
-                          {formatFileSize(doc.file.size)}
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveDraftDoc(doc.id)}
-                        aria-label={`Quitar ${doc.file.name}`}
-                        className="h-9 w-9 inline-flex items-center justify-center rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer shrink-0"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    <PublicDocVisibilityControl
-                      documentName={doc.file.name}
-                      isPublic={doc.isPublic}
-                      onConfirmChange={(checked) =>
-                        handleToggleDraftVisibility(doc.id, checked)
-                      }
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="owner-first-name">Nombre(s) *</Label>
+                    <Input
+                      id="owner-first-name"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      maxLength={100}
+                      placeholder="Ej. Carlos Alberto"
+                      required
                     />
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="owner-last-name">Apellidos *</Label>
+                    <Input
+                      id="owner-last-name"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      maxLength={100}
+                      placeholder="Ej. Mendoza Ruiz"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="owner-email">Correo electrónico</Label>
+                  <Input
+                    id="owner-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    maxLength={150}
+                    placeholder="carlos@ejemplo.com"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="owner-phone">Teléfono</Label>
+                  <Input
+                    id="owner-phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    maxLength={30}
+                    placeholder="+52 55 1234 5678"
+                    className="font-mono tabular-nums"
+                  />
+                </div>
+
+                <OwnerCardThemeControl
+                  value={cardThemeOverride}
+                  onChange={setCardThemeOverride}
+                  disabled={saving}
+                />
+              </section>
+
+              <section className="rounded-xl border border-slate-200 bg-white p-6 space-y-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-900">
+                      Documentos ({draftDocs.length} / {MAX_DOCS})
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Opcional. Formatos JPG, JPEG o PNG de hasta 4 MB cada uno.
+                    </p>
+                  </div>
+
+                  <label
+                    className={`inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 hover:bg-slate-50 cursor-pointer ${
+                      draftDocs.length >= MAX_DOCS ? 'opacity-50 pointer-events-none' : ''
+                    }`}
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    <span>Agregar</span>
+                    <input
+                      type="file"
+                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                      multiple
+                      className="sr-only"
+                      disabled={draftDocs.length >= MAX_DOCS}
+                      onChange={(e) => {
+                        handleAddFiles(e.target.files);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
+
+                {draftDocs.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-xs text-slate-500">
+                    Sin documentos adjuntos. Los documentos marcados como privados nunca aparecerán en la ficha pública.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
+                    {draftDocs.map((doc) => (
+                      <div key={doc.id} className="p-3.5 space-y-2.5">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={doc.previewUrl}
+                            alt={doc.file.name}
+                            className="h-12 w-12 rounded object-cover border border-slate-200 shrink-0"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-slate-900 truncate">
+                              {doc.file.name}
+                            </p>
+                            <p className="text-xs text-slate-500 font-mono tabular-nums">
+                              {formatFileSize(doc.file.size)}
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDraftDoc(doc.id)}
+                            aria-label={`Quitar ${doc.file.name}`}
+                            className="h-9 w-9 inline-flex items-center justify-center rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer shrink-0"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        <PublicDocVisibilityControl
+                          documentName={doc.file.name}
+                          isPublic={doc.isPublic}
+                          onConfirmChange={(checked) =>
+                            handleToggleDraftVisibility(doc.id, checked)
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
+          ) : (
+            <OwnerEmergencyFields
+              value={emergencyProfile}
+              onChange={setEmergencyProfile}
+              disabled={saving}
+              idPrefix="create-emg"
+            />
+          )}
         </div>
 
         {/* Right: Initial QR Label Designer */}

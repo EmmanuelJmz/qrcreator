@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { normalizeEmergencyProfile } from '../../lib/emergency-profile.ts';
 import {
   DEFAULT_PUBLIC_CARD_THEME,
   mergeThemeWithOwnerOverride,
@@ -87,6 +88,13 @@ publicRouter.get('/:token', async (req, res, next) => {
       ownerOverrideRaw = null;
     }
 
+    let ownerEmergencyRaw: unknown = null;
+    try {
+      ownerEmergencyRaw = (await publicDb.getOwnerEmergencyByHash?.(tokenHash)) ?? null;
+    } catch {
+      ownerEmergencyRaw = null;
+    }
+
     const globalTheme = normalizePublicCardTheme({
       ...((globalRow?.theme as Record<string, unknown> | undefined) ?? DEFAULT_PUBLIC_CARD_THEME),
       hasCustomLogo: Boolean(globalRow?.logo_storage_key),
@@ -105,6 +113,7 @@ publicRouter.get('/:token', async (req, res, next) => {
         fullName: `${card.first_name} ${card.last_name}`.trim(),
         email: card.email,
         phone: card.phone,
+        emergencyProfile: normalizeEmergencyProfile(ownerEmergencyRaw),
         documents: docs.map((d) => ({
           id: d.document_id,
           originalName: d.original_name,

@@ -13,6 +13,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
+import type { OwnerEmergencyProfile } from '../../lib/emergency-profile.ts';
 import type {
   OwnerCardThemeOverride,
   PublicCardTheme,
@@ -33,6 +34,7 @@ export const owners = pgTable(
     scanCount: integer('scan_count').default(0).notNull(),
     lastScannedAt: timestamp('last_scanned_at', { withTimezone: true }),
     cardThemeOverride: jsonb('card_theme_override').$type<OwnerCardThemeOverride | null>(),
+    emergencyProfile: jsonb('emergency_profile').$type<OwnerEmergencyProfile | null>(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

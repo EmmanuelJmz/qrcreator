@@ -44,6 +44,45 @@ const PREVIEW_SAMPLE_CARD: PublicCardData = {
   fullName: 'Carlos Mendoza Ruiz',
   email: 'carlos@ejemplo.com',
   phone: '+52 55 1234 5678',
+  emergencyProfile: {
+    birthDate: '1994-06-15',
+    bloodType: 'O+',
+    organDonor: 'yes',
+    cityState: 'Guadalajara, Jal.',
+    contact1: {
+      name: 'Martha Ruiz',
+      phone: '+52 33 1987 6543',
+      relationship: 'mama',
+      relationshipCustom: '',
+    },
+    contact2: {
+      name: 'Luis Mendoza',
+      phone: '+52 33 1456 7890',
+      relationship: 'hermano',
+      relationshipCustom: '',
+    },
+    allergies: {
+      noneKnown: false,
+      selected: ['Penicilina'],
+      custom: ['Sulfamidas'],
+    },
+    conditions: {
+      noneKnown: false,
+      selected: ['Diabetes (azúcar)', 'Gastritis / Úlcera'],
+      custom: [],
+    },
+    medications: {
+      noneKnown: false,
+      items: ['Metformina 850 mg'],
+    },
+    insurance: {
+      institution: 'IMSS',
+      nss: '12345678901',
+      policyNumber: '',
+      clinic: 'UMF 51',
+    },
+    rescueNotes: 'Casco modular negro. Ante emergencia llamar primero a Martha Ruiz.',
+  },
   documents: [
     {
       id: 'preview-doc-1',
@@ -278,6 +317,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
           fullName: detail.owner.fullName,
           email: detail.owner.email,
           phone: detail.owner.phone,
+          emergencyProfile: detail.owner.emergencyProfile ?? null,
           documents: detail.documents
             .filter((d) => d.isPublic)
             .map((d) => ({

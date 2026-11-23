@@ -5,11 +5,13 @@ import multer from 'multer';
 import { getDb } from '../db/index.ts';
 import { labels, ownerDocuments, owners, templates } from '../db/schema.ts';
 import { validateLabelGeometry } from '../../lib/qr-geometry.ts';
+import { normalizeEmergencyProfile } from '../../lib/emergency-profile.ts';
 import { normalizeOwnerCardOverride } from '../../lib/public-card-theme.ts';
 import { normalizeQrStyle } from '../../lib/qr-styled.ts';
 import { requireAdmin } from '../middleware/auth.middleware.ts';
 import {
   documentVisibilitySchema,
+  emergencyProfileSchema,
   labelConfigSchema,
   ownerCardThemeOverrideSchema,
   ownerInfoSchema,
@@ -103,6 +105,7 @@ ownersRouter.get('/', async (req, res, next) => {
           scanCount: owners.scanCount,
           lastScannedAt: owners.lastScannedAt,
           cardThemeOverride: owners.cardThemeOverride,
+          emergencyProfile: owners.emergencyProfile,
           createdAt: owners.createdAt,
           updatedAt: owners.updatedAt,
           documentCount: sql<number>`(SELECT COUNT(*)::int FROM owner_documents d WHERE d.owner_id = ${owners.id})`,
@@ -161,6 +164,7 @@ ownersRouter.get('/', async (req, res, next) => {
           scanCount: Number(row.scanCount ?? 0),
           lastScannedAt: row.lastScannedAt ? toIso(row.lastScannedAt) : null,
           hasCustomCardTheme: Boolean(normalizeOwnerCardOverride(row.cardThemeOverride)),
+          hasEmergencyProfile: Boolean(normalizeEmergencyProfile(row.emergencyProfile)),
           publicToken,
           publicUrl: publicToken ? buildPublicCardUrl(publicToken, origin) : null,
           createdAt: toIso(row.createdAt),
@@ -248,6 +252,7 @@ ownersRouter.get('/:id', async (req, res, next) => {
         scanCount: Number(owner.scanCount ?? 0),
         lastScannedAt: owner.lastScannedAt ? toIso(owner.lastScannedAt) : null,
         cardThemeOverride: normalizeOwnerCardOverride(owner.cardThemeOverride),
+        emergencyProfile: normalizeEmergencyProfile(owner.emergencyProfile),
         publicToken,
         publicUrl: publicToken ? buildPublicCardUrl(publicToken, origin) : null,
         createdAt: toIso(owner.createdAt),
@@ -335,6 +340,27 @@ ownersRouter.post('/', upload.array('documents', MAX_DOCUMENTS_PER_OWNER), async
       return;
     }
     const cardThemeOverride = normalizeOwnerCardOverride(cardOverrideParsed.data);
+
+    let rawEmergencyPayload: unknown = null;
+    if (req.body?.emergencyProfile) {
+      try {
+        rawEmergencyPayload =
+          typeof req.body.emergencyProfile === 'string'
+            ? JSON.parse(req.body.emergencyProfile)
+            : req.body.emergencyProfile;
+      } catch {
+        res.status(400).json({ error: 'Datos médicos y de emergencia inválidos.' });
+        return;
+      }
+    }
+    const emergencyParsed = emergencyProfileSchema.safeParse(rawEmergencyPayload);
+    if (!emergencyParsed.success) {
+      res.status(400).json({
+        error: emergencyParsed.error.issues[0]?.message || 'Datos médicos y de emergencia inválidos.',
+      });
+      return;
+    }
+    const emergencyProfile = normalizeEmergencyProfile(emergencyParsed.data);
 
     const db = getDb();
     const templateRows = await db
@@ -456,6 +482,7 @@ ownersRouter.post('/', upload.array('documents', MAX_DOCUMENTS_PER_OWNER), async
         encryptedPublicToken: encryptedToken,
         tokenVersion: 1,
         cardThemeOverride,
+        emergencyProfile,
         createdAt: now,
         updatedAt: now,
       });
@@ -556,9 +583,27 @@ ownersRouter.put('/:id', async (req, res, next) => {
       nextCardOverride = normalizeOwnerCardOverride(overrideCheck.data);
     }
 
+    let hasEmergencyUpdate = false;
+    let nextEmergencyProfile = null;
+    if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'emergencyProfile')) {
+      const emergencyCheck = emergencyProfileSchema.safeParse(req.body.emergencyProfile);
+      if (!emergencyCheck.success) {
+        res.status(400).json({
+          error: emergencyCheck.error.issues[0]?.message || 'Datos médicos y de emergencia inválidos.',
+        });
+        return;
+      }
+      hasEmergencyUpdate = true;
+      nextEmergencyProfile = normalizeEmergencyProfile(emergencyCheck.data);
+    }
+
     const db = getDb();
     const existingRows = await db
-      .select({ id: owners.id, cardThemeOverride: owners.cardThemeOverride })
+      .select({
+        id: owners.id,
+        cardThemeOverride: owners.cardThemeOverride,
+        emergencyProfile: owners.emergencyProfile,
+      })
       .from(owners)
       .where(eq(owners.id, idCheck.data))
       .limit(1);
@@ -578,6 +623,7 @@ ownersRouter.put('/:id', async (req, res, next) => {
         email: parsed.data.email,
         phone: parsed.data.phone,
         ...(hasOverrideUpdate ? { cardThemeOverride: nextCardOverride } : {}),
+        ...(hasEmergencyUpdate ? { emergencyProfile: nextEmergencyProfile } : {}),
         updatedAt: now,
       })
       .where(eq(owners.id, idCheck.data));
@@ -593,6 +639,9 @@ ownersRouter.put('/:id', async (req, res, next) => {
         cardThemeOverride: hasOverrideUpdate
           ? nextCardOverride
           : normalizeOwnerCardOverride(existingRows[0].cardThemeOverride),
+        emergencyProfile: hasEmergencyUpdate
+          ? nextEmergencyProfile
+          : normalizeEmergencyProfile(existingRows[0].emergencyProfile),
         updatedAt: now.toISOString(),
       },
     });

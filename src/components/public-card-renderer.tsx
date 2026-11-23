@@ -1,12 +1,21 @@
 import React, { useRef, useState } from 'react';
 import {
+  Activity,
+  AlertTriangle,
+  Building2,
   CheckCircle2,
   FileImage,
   GripHorizontal,
+  HeartPulse,
   Mail,
+  MapPin,
   Move,
   Phone,
+  PhoneCall,
+  Pill,
   QrCode,
+  ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   Dialog,
@@ -15,6 +24,12 @@ import {
   DialogTitle,
 } from '@/src/components/ui/dialog';
 import type { PublicCardData, PublicCardDocument } from '@/src/lib/api-client';
+import {
+  calculateAgeFromBirthDate,
+  formatBirthDateEs,
+  formatRelationshipLabel,
+  hasContactData,
+} from '@/src/lib/emergency-profile';
 import {
   computeBannerVisuals,
   computeLogoOverhangPx,
@@ -67,6 +82,9 @@ const PAGE_STYLE_CLASSES: Record<
     docCard: string;
     docThumb: string;
     divider: string;
+    subtleBox: string;
+    bloodBox: string;
+    alertBox: string;
   }
 > = {
   slate: {
@@ -79,6 +97,9 @@ const PAGE_STYLE_CLASSES: Record<
     docCard: 'border-slate-300/80 bg-white hover:border-slate-500 shadow-xs',
     docThumb: 'bg-slate-100 border-slate-200',
     divider: 'border-slate-100',
+    subtleBox: 'border-slate-200 bg-slate-50',
+    bloodBox: 'border-red-200 bg-red-50/80 text-red-900',
+    alertBox: 'border-amber-200 bg-amber-50/80 text-amber-950',
   },
   white: {
     root: 'bg-white text-slate-900',
@@ -90,6 +111,9 @@ const PAGE_STYLE_CLASSES: Record<
     docCard: 'border-slate-200 bg-white hover:border-slate-400',
     docThumb: 'bg-slate-50 border-slate-200',
     divider: 'border-slate-100',
+    subtleBox: 'border-slate-200 bg-slate-50/70',
+    bloodBox: 'border-red-200 bg-red-50/80 text-red-900',
+    alertBox: 'border-amber-200 bg-amber-50/80 text-amber-950',
   },
   warm: {
     root: 'bg-[#EFE6D5] text-stone-900',
@@ -101,6 +125,9 @@ const PAGE_STYLE_CLASSES: Record<
     docCard: 'border-stone-300/80 bg-white hover:border-stone-500 shadow-xs',
     docThumb: 'bg-[#F7F1E6] border-stone-200',
     divider: 'border-stone-100',
+    subtleBox: 'border-stone-200 bg-[#FAF6EE]',
+    bloodBox: 'border-red-200 bg-red-50/85 text-red-900',
+    alertBox: 'border-amber-200 bg-amber-50/85 text-amber-950',
   },
   dark: {
     root: 'bg-slate-950 text-slate-100',
@@ -112,6 +139,9 @@ const PAGE_STYLE_CLASSES: Record<
     docCard: 'border-slate-800 bg-slate-900 hover:border-slate-600',
     docThumb: 'bg-slate-950 border-slate-800',
     divider: 'border-slate-800',
+    subtleBox: 'border-slate-800 bg-slate-950/70',
+    bloodBox: 'border-red-900/70 bg-red-950/50 text-red-200',
+    alertBox: 'border-amber-900/70 bg-amber-950/40 text-amber-100',
   },
 };
 
@@ -298,91 +328,415 @@ export function PublicCardView({
         className="max-w-4xl mx-auto px-4 sm:px-6 pb-12 space-y-6"
         style={{ paddingTop: `${Math.max(24, overhang + 20)}px` }}
       >
-        <section className={`rounded-2xl border p-6 sm:p-8 space-y-6 ${palette.card}`}>
-          <div className="text-center space-y-2">
-            <p className={`text-xs font-medium ${palette.muted}`}>Propietario del casco</p>
-            <h1 className={`text-2xl sm:text-3xl font-bold tracking-tight ${palette.title}`}>
-              {card.fullName}
-            </h1>
-            <div className="inline-flex items-center justify-center gap-2 text-sm font-semibold text-emerald-600 pt-1">
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
-              <span>Etiqueta activa verificada</span>
-            </div>
-          </div>
+        {(() => {
+          const emg = card.emergencyProfile ?? null;
+          const age = emg?.birthDate ? calculateAgeFromBirthDate(emg.birthDate) : null;
+          const birthFormatted = emg?.birthDate ? formatBirthDateEs(emg.birthDate) : '';
+          const contacts = [emg?.contact1, emg?.contact2].filter(
+            (c): c is NonNullable<typeof c> => Boolean(c && hasContactData(c)),
+          );
+          const allAllergies = emg
+            ? [...emg.allergies.selected, ...emg.allergies.custom]
+            : [];
+          const hasAllergyBlock = Boolean(
+            emg && (emg.allergies.noneKnown || allAllergies.length > 0),
+          );
+          const allConditions = emg
+            ? [...emg.conditions.selected, ...emg.conditions.custom]
+            : [];
+          const hasConditionsBlock = Boolean(
+            emg && (emg.conditions.noneKnown || allConditions.length > 0),
+          );
+          const hasMedsBlock = Boolean(
+            emg && (emg.medications.noneKnown || emg.medications.items.length > 0),
+          );
+          const hasInsurance = Boolean(
+            emg &&
+              (emg.insurance.institution ||
+                emg.insurance.nss ||
+                emg.insurance.policyNumber ||
+                emg.insurance.clinic),
+          );
+          const hasVitals = Boolean(
+            emg && (emg.bloodType || emg.birthDate || emg.organDonor !== 'unspecified'),
+          );
 
-          {(card.phone || card.email) && (
-            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 pt-5 border-t ${palette.divider}`}>
-              {card.phone && (
-                <a
-                  href={interactive ? undefined : `tel:${card.phone}`}
-                  onClick={interactive ? (e) => e.preventDefault() : undefined}
-                  className={`min-h-[52px] flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${palette.contactBox}`}
-                >
-                  <Phone
-                    className="h-5 w-5 shrink-0"
-                    style={{ color: theme.headerColor }}
-                  />
-                  <div className="min-w-0">
-                    <p className={`text-xs ${palette.muted}`}>Teléfono de contacto</p>
-                    <p className={`text-sm font-semibold font-mono tabular-nums truncate ${palette.contactValue}`}>
-                      {card.phone}
-                    </p>
+          return (
+            <>
+              <section className={`rounded-2xl border p-6 sm:p-8 space-y-6 ${palette.card}`}>
+                <div className="text-center space-y-2">
+                  <p className={`text-xs font-medium ${palette.muted}`}>
+                    Propietario del casco
+                  </p>
+                  <h1 className={`text-2xl sm:text-3xl font-bold tracking-tight ${palette.title}`}>
+                    {card.fullName}
+                  </h1>
+                  <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-1 text-sm">
+                    <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600">
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      <span>Etiqueta activa verificada</span>
+                    </span>
+                    {emg?.cityState && (
+                      <>
+                        <span className={palette.muted} aria-hidden="true">·</span>
+                        <span className={`inline-flex items-center gap-1 ${palette.muted}`}>
+                          <MapPin className="h-3.5 w-3.5 shrink-0" />
+                          <span>{emg.cityState}</span>
+                        </span>
+                      </>
+                    )}
                   </div>
-                </a>
-              )}
-
-              {card.email && (
-                <a
-                  href={interactive ? undefined : `mailto:${card.email}`}
-                  onClick={interactive ? (e) => e.preventDefault() : undefined}
-                  className={`min-h-[52px] flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${palette.contactBox}`}
-                >
-                  <Mail
-                    className="h-5 w-5 shrink-0"
-                    style={{ color: theme.headerColor }}
-                  />
-                  <div className="min-w-0">
-                    <p className={`text-xs ${palette.muted}`}>Correo electrónico</p>
-                    <p className={`text-sm font-semibold truncate ${palette.contactValue}`}>
-                      {card.email}
-                    </p>
-                  </div>
-                </a>
-              )}
-            </div>
-          )}
-
-          {theme.showLabelPreviewButton && (
-            <div className="pt-1 flex flex-col items-center">
-              <button
-                type="button"
-                onClick={() => {
-                  if (!interactive && token) setShowLabelImage((v) => !v);
-                }}
-                className="min-h-[40px] inline-flex items-center gap-2 text-sm font-medium cursor-pointer whitespace-nowrap hover:opacity-80 transition-opacity"
-                style={{ color: theme.headerColor }}
-              >
-                <QrCode className="h-4 w-4 shrink-0" />
-                <span>
-                  {showLabelImage
-                    ? 'Ocultar etiqueta QR asociada'
-                    : 'Ver etiqueta QR asociada'}
-                </span>
-              </button>
-
-              {!interactive && token && showLabelImage && (
-                <div className={`mt-3 w-full rounded-xl border p-4 flex justify-center ${palette.docThumb}`}>
-                  <img
-                    src={`/api/v1/public/${encodeURIComponent(token)}/label-image`}
-                    alt={`Etiqueta QR de ${card.fullName}`}
-                    referrerPolicy="no-referrer"
-                    className="max-h-72 w-auto object-contain rounded"
-                  />
                 </div>
+
+                {/* Vitals Summary Row */}
+                {hasVitals && emg && (
+                  <div
+                    className={`grid grid-cols-1 ${
+                      [
+                        Boolean(emg.bloodType),
+                        Boolean(emg.birthDate),
+                        emg.organDonor !== 'unspecified',
+                      ].filter(Boolean).length === 2
+                        ? 'sm:grid-cols-2'
+                        : [
+                              Boolean(emg.bloodType),
+                              Boolean(emg.birthDate),
+                              emg.organDonor !== 'unspecified',
+                            ].filter(Boolean).length >= 3
+                          ? 'sm:grid-cols-3'
+                          : ''
+                    } gap-3 pt-4 border-t ${palette.divider}`}
+                  >
+                    {emg.bloodType && (
+                      <div className={`rounded-xl border px-4 py-3 flex items-center justify-between gap-3 ${palette.bloodBox}`}>
+                        <div>
+                          <p className="text-xs font-medium opacity-80">Tipo de sangre</p>
+                          <p className="text-xl font-bold font-mono tabular-nums">
+                            {emg.bloodType}
+                          </p>
+                        </div>
+                        <HeartPulse className="h-5 w-5 shrink-0 opacity-80" />
+                      </div>
+                    )}
+
+                    {emg.birthDate && (
+                      <div className={`rounded-xl border px-4 py-3 ${palette.subtleBox}`}>
+                        <p className={`text-xs ${palette.muted}`}>Edad y nacimiento</p>
+                        <p className={`text-base font-bold font-mono tabular-nums ${palette.title}`}>
+                          {age !== null ? `${age} años` : birthFormatted}
+                        </p>
+                        {age !== null && birthFormatted && (
+                          <p className={`text-xs font-mono tabular-nums ${palette.muted}`}>
+                            {birthFormatted}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {emg.organDonor !== 'unspecified' && (
+                      <div className={`rounded-xl border px-4 py-3 ${palette.subtleBox}`}>
+                        <p className={`text-xs ${palette.muted}`}>Donador de órganos</p>
+                        <p className={`text-base font-semibold ${palette.title}`}>
+                          {emg.organDonor === 'yes' ? 'Sí, es donador' : 'No es donador'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Direct Owner Phone & Email */}
+                {(card.phone || card.email) && (
+                  <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 pt-5 border-t ${palette.divider}`}>
+                    {card.phone && (
+                      <a
+                        href={interactive ? undefined : `tel:${card.phone}`}
+                        onClick={interactive ? (e) => e.preventDefault() : undefined}
+                        className={`min-h-[52px] flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${palette.contactBox}`}
+                      >
+                        <Phone
+                          className="h-5 w-5 shrink-0"
+                          style={{ color: theme.headerColor }}
+                        />
+                        <div className="min-w-0">
+                          <p className={`text-xs ${palette.muted}`}>Teléfono del titular</p>
+                          <p className={`text-sm font-semibold font-mono tabular-nums truncate ${palette.contactValue}`}>
+                            {card.phone}
+                          </p>
+                        </div>
+                      </a>
+                    )}
+
+                    {card.email && (
+                      <a
+                        href={interactive ? undefined : `mailto:${card.email}`}
+                        onClick={interactive ? (e) => e.preventDefault() : undefined}
+                        className={`min-h-[52px] flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${palette.contactBox}`}
+                      >
+                        <Mail
+                          className="h-5 w-5 shrink-0"
+                          style={{ color: theme.headerColor }}
+                        />
+                        <div className="min-w-0">
+                          <p className={`text-xs ${palette.muted}`}>Correo electrónico</p>
+                          <p className={`text-sm font-semibold truncate ${palette.contactValue}`}>
+                            {card.email}
+                          </p>
+                        </div>
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {theme.showLabelPreviewButton && (
+                  <div className="pt-1 flex flex-col items-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!interactive && token) setShowLabelImage((v) => !v);
+                      }}
+                      className="min-h-[40px] inline-flex items-center gap-2 text-sm font-medium cursor-pointer whitespace-nowrap hover:opacity-80 transition-opacity"
+                      style={{ color: theme.headerColor }}
+                    >
+                      <QrCode className="h-4 w-4 shrink-0" />
+                      <span>
+                        {showLabelImage
+                          ? 'Ocultar etiqueta QR asociada'
+                          : 'Ver etiqueta QR asociada'}
+                      </span>
+                    </button>
+
+                    {!interactive && token && showLabelImage && (
+                      <div className={`mt-3 w-full rounded-xl border p-4 flex justify-center ${palette.docThumb}`}>
+                        <img
+                          src={`/api/v1/public/${encodeURIComponent(token)}/label-image`}
+                          alt={`Etiqueta QR de ${card.fullName}`}
+                          referrerPolicy="no-referrer"
+                          className="max-h-72 w-auto object-contain rounded"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+
+              {/* Emergency Contacts */}
+              {contacts.length > 0 && (
+                <section className={`rounded-2xl border p-5 sm:p-6 space-y-4 ${palette.card}`}>
+                  <div className="flex items-center gap-2">
+                    <PhoneCall className="h-4 w-4 shrink-0 text-red-600" />
+                    <h2 className={`text-base font-semibold ${palette.title}`}>
+                      Contactos de emergencia
+                    </h2>
+                  </div>
+
+                  <div className={`grid grid-cols-1 ${contacts.length > 1 ? 'sm:grid-cols-2' : ''} gap-3`}>
+                    {contacts.map((c, idx) => {
+                      const relLabel = formatRelationshipLabel(c);
+                      return (
+                        <div
+                          key={`${c.name}-${c.phone}-${idx}`}
+                          className={`rounded-xl border p-4 flex flex-col justify-between gap-3 ${palette.subtleBox}`}
+                        >
+                          <div className="space-y-0.5">
+                            <p className={`text-xs font-medium ${palette.muted}`}>
+                              {relLabel
+                                ? `Contacto ${idx + 1} · ${relLabel}`
+                                : `Contacto de emergencia ${idx + 1}`}
+                            </p>
+                            <p className={`text-base font-semibold ${palette.title}`}>
+                              {c.name || 'Sin nombre especificado'}
+                            </p>
+                          </div>
+
+                          {c.phone && (
+                            <a
+                              href={interactive ? undefined : `tel:${c.phone}`}
+                              onClick={interactive ? (e) => e.preventDefault() : undefined}
+                              className="min-h-[44px] w-full rounded-lg px-3.5 py-2 text-sm font-semibold text-white inline-flex items-center justify-center gap-2 transition-opacity hover:opacity-90"
+                              style={{ backgroundColor: theme.headerColor }}
+                            >
+                              <Phone className="h-4 w-4 shrink-0" />
+                              <span className="font-mono tabular-nums">{c.phone}</span>
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
               )}
-            </div>
-          )}
-        </section>
+
+              {/* Medical Profile: Allergies, Conditions, Medications */}
+              {(hasAllergyBlock || hasConditionsBlock || hasMedsBlock) && (
+                <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {hasAllergyBlock && emg && (
+                    <div
+                      className={`rounded-2xl border p-5 space-y-2.5 ${
+                        !emg.allergies.noneKnown && allAllergies.length > 0
+                          ? palette.alertBox
+                          : palette.card
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle
+                          className={`h-4 w-4 shrink-0 ${
+                            !emg.allergies.noneKnown && allAllergies.length > 0
+                              ? 'text-amber-600'
+                              : 'text-emerald-600'
+                          }`}
+                        />
+                        <h3 className="text-sm font-semibold">Alergias</h3>
+                      </div>
+
+                      {emg.allergies.noneKnown ? (
+                        <p className="text-sm font-medium text-emerald-600">
+                          Sin alergias conocidas
+                        </p>
+                      ) : (
+                        <ul className="space-y-1.5 text-sm font-medium">
+                          {allAllergies.map((item) => (
+                            <li key={item} className="flex items-start gap-2">
+                              <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-current shrink-0" />
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  {hasConditionsBlock && emg && (
+                    <div className={`rounded-2xl border p-5 space-y-2.5 ${palette.card}`}>
+                      <div className="flex items-center gap-2">
+                        <Activity
+                          className="h-4 w-4 shrink-0"
+                          style={{ color: theme.headerColor }}
+                        />
+                        <h3 className={`text-sm font-semibold ${palette.title}`}>
+                          Enfermedades / condiciones
+                        </h3>
+                      </div>
+
+                      {emg.conditions.noneKnown ? (
+                        <p className="text-sm font-medium text-emerald-600">
+                          Ninguna condición conocida
+                        </p>
+                      ) : (
+                        <ul className={`space-y-1.5 text-sm font-medium ${palette.title}`}>
+                          {allConditions.map((item) => (
+                            <li key={item} className="flex items-start gap-2">
+                              <span
+                                className="mt-1.5 h-1.5 w-1.5 rounded-full shrink-0"
+                                style={{ backgroundColor: theme.headerColor }}
+                              />
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  {hasMedsBlock && emg && (
+                    <div className={`rounded-2xl border p-5 space-y-2.5 ${palette.card}`}>
+                      <div className="flex items-center gap-2">
+                        <Pill
+                          className="h-4 w-4 shrink-0"
+                          style={{ color: theme.headerColor }}
+                        />
+                        <h3 className={`text-sm font-semibold ${palette.title}`}>
+                          Medicamentos actuales
+                        </h3>
+                      </div>
+
+                      {emg.medications.noneKnown ? (
+                        <p className={`text-sm ${palette.muted}`}>No toma medicamentos</p>
+                      ) : (
+                        <ul className={`space-y-1.5 text-sm font-medium ${palette.title}`}>
+                          {emg.medications.items.map((item) => (
+                            <li key={item} className="flex items-start gap-2">
+                              <span
+                                className="mt-1.5 h-1.5 w-1.5 rounded-full shrink-0"
+                                style={{ backgroundColor: theme.headerColor }}
+                              />
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {/* Social Security (NSS) & Medical Insurance */}
+              {hasInsurance && emg && (
+                <section className={`rounded-2xl border p-5 sm:p-6 space-y-4 ${palette.card}`}>
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-blue-600 shrink-0" />
+                    <h2 className={`text-base font-semibold ${palette.title}`}>
+                      Seguridad social (NSS) y seguro médico
+                    </h2>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {emg.insurance.institution && (
+                      <div className={`rounded-xl border px-4 py-3 ${palette.subtleBox}`}>
+                        <p className={`text-xs ${palette.muted}`}>Institución / Aseguradora</p>
+                        <p className={`text-sm font-semibold mt-0.5 ${palette.title}`}>
+                          {emg.insurance.institution}
+                        </p>
+                      </div>
+                    )}
+
+                    {emg.insurance.nss && (
+                      <div className={`rounded-xl border px-4 py-3 ${palette.subtleBox}`}>
+                        <p className={`text-xs ${palette.muted}`}>Número de Seguro Social (NSS)</p>
+                        <p className={`text-base font-bold font-mono tabular-nums mt-0.5 break-all ${palette.title}`}>
+                          {emg.insurance.nss}
+                        </p>
+                      </div>
+                    )}
+
+                    {emg.insurance.policyNumber && (
+                      <div className={`rounded-xl border px-4 py-3 ${palette.subtleBox}`}>
+                        <p className={`text-xs ${palette.muted}`}>No. de póliza / afiliación</p>
+                        <p className={`text-sm font-semibold font-mono tabular-nums mt-0.5 break-all ${palette.title}`}>
+                          {emg.insurance.policyNumber}
+                        </p>
+                      </div>
+                    )}
+
+                    {emg.insurance.clinic && (
+                      <div className={`rounded-xl border px-4 py-3 ${palette.subtleBox}`}>
+                        <p className={`text-xs ${palette.muted}`}>Clínica / UMF</p>
+                        <p className={`text-sm font-semibold mt-0.5 flex items-center gap-1.5 ${palette.title}`}>
+                          <Building2 className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                          <span>{emg.insurance.clinic}</span>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {/* Quick Rescue / Motorcycle Notes */}
+              {emg?.rescueNotes && (
+                <section className={`rounded-2xl border p-5 flex items-start gap-3 ${palette.card}`}>
+                  <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <h2 className={`text-sm font-semibold ${palette.title}`}>
+                      Notas de rescate y motocicleta
+                    </h2>
+                    <p className={`text-sm leading-relaxed ${palette.muted}`}>
+                      {emg.rescueNotes}
+                    </p>
+                  </div>
+                </section>
+              )}
+            </>
+          );
+        })()}
 
         {/* Authorized Public Documents */}
         <section className="space-y-4">

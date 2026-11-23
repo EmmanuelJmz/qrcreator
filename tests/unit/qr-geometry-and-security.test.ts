@@ -16,6 +16,13 @@ import {
   normalizePublicCardTheme,
 } from '@/src/lib/public-card-theme';
 import {
+  calculateAgeFromBirthDate,
+  formatBirthDateEs,
+  formatRelationshipLabel,
+  normalizeEmergencyProfile,
+} from '@/src/lib/emergency-profile';
+import {
+  emergencyProfileSchema,
   labelConfigSchema,
   ownerCardThemeOverrideSchema,
   ownerInfoSchema,
@@ -430,5 +437,93 @@ describe('Seguridad criptográfica de tokens y firma binaria de archivos', () =>
       footerNote: 'Solo uso interno',
     });
     expect(normalizeOwnerCardOverride({ useGlobalTheme: true })).toBeNull();
+  });
+
+  it('normaliza ficha de emergencia, calcula edad, formatea parentesco y valida esquema médico y NSS', () => {
+    expect(normalizeEmergencyProfile(null)).toBeNull();
+    expect(normalizeEmergencyProfile({})).toBeNull();
+
+    const ref = new Date(2026, 10, 23); // 23 nov 2026
+    expect(calculateAgeFromBirthDate('1994-06-15', ref)).toBe(32);
+    expect(calculateAgeFromBirthDate('1994-12-01', ref)).toBe(31);
+    expect(calculateAgeFromBirthDate('2025-02-29', ref)).toBeNull();
+    expect(formatBirthDateEs('1994-06-15')).toBe('15 jun 1994');
+
+    const normalized = normalizeEmergencyProfile({
+      birthDate: '1994-06-15',
+      bloodType: 'O+',
+      organDonor: 'yes',
+      cityState: '  Monterrey, N.L. ',
+      contact1: {
+        name: '  Martha Ruiz ',
+        phone: '+52 81 1234 5678',
+        relationship: 'mama',
+        relationshipCustom: 'Ignorado si no es otro',
+      },
+      contact2: {
+        name: 'Carlos',
+        phone: '8112340000',
+        relationship: 'otro',
+        relationshipCustom: '  Primo hermano ',
+      },
+      allergies: {
+        noneKnown: false,
+        selected: ['Penicilina', 'penicilina'],
+        custom: ['  Yodo ', 'yodo', 'Polen'],
+      },
+      conditions: {
+        noneKnown: true,
+        selected: ['Asma'],
+        custom: ['Algo'],
+      },
+      medications: {
+        noneKnown: false,
+        items: ['Metformina', 'metformina', 'Omeprazol'],
+      },
+      insurance: {
+        institution: 'IMSS',
+        nss: ' 12345678901 ',
+        clinic: 'UMF 26',
+      },
+      rescueNotes: '  Casco rojo  ',
+    });
+
+    expect(normalized).not.toBeNull();
+    expect(normalized?.cityState).toBe('Monterrey, N.L.');
+    expect(normalized?.contact1.relationshipCustom).toBe('');
+    expect(normalized?.contact2.relationshipCustom).toBe('Primo hermano');
+    expect(formatRelationshipLabel(normalized!.contact1)).toBe('Mamá');
+    expect(formatRelationshipLabel(normalized!.contact2)).toBe('Primo hermano');
+    expect(normalized?.allergies.selected).toEqual(['Penicilina']);
+    expect(normalized?.allergies.custom).toEqual(['Yodo', 'Polen']);
+    expect(normalized?.conditions).toEqual({ noneKnown: true, selected: [], custom: [] });
+    expect(normalized?.medications.items).toEqual(['Metformina', 'Omeprazol']);
+    expect(normalized?.insurance.nss).toBe('12345678901');
+    expect(normalized?.rescueNotes).toBe('Casco rojo');
+
+    expect(
+      emergencyProfileSchema.safeParse({
+        birthDate: '1994-06-15',
+        bloodType: 'O+',
+        contact1: {
+          name: 'Ana',
+          phone: '+52 55 1111 2222',
+          relationship: 'mama',
+        },
+        insurance: { institution: 'IMSS', nss: '12345678901' },
+      }).success,
+    ).toBe(true);
+
+    expect(
+      emergencyProfileSchema.safeParse({
+        contact1: { phone: 'telefono-invalido' },
+      }).success,
+    ).toBe(false);
+
+    expect(
+      emergencyProfileSchema.safeParse({
+        birthDate: '2099-01-01',
+      }).success,
+    ).toBe(false);
   });
 });

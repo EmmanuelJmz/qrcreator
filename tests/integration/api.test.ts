@@ -227,6 +227,32 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
           subtitleText: 'Capitán',
         };
       },
+      async getOwnerEmergencyByHash(hash) {
+        if (hash !== expectedHash) return null;
+        return {
+          birthDate: '1994-06-15',
+          bloodType: 'O+',
+          organDonor: 'yes',
+          cityState: 'CDMX',
+          contact1: {
+            name: 'Martha Mendoza',
+            phone: '+52 55 9876 5432',
+            relationship: 'mama',
+            relationshipCustom: '',
+          },
+          contact2: {
+            name: 'Luis Mendoza',
+            phone: '+52 55 1122 3344',
+            relationship: 'hermano',
+            relationshipCustom: '',
+          },
+          allergies: { noneKnown: false, selected: ['Penicilina'], custom: [] },
+          conditions: { noneKnown: false, selected: ['Diabetes (azúcar)'], custom: ['Rinitis'] },
+          medications: { noneKnown: false, items: ['Metformina 850 mg'] },
+          insurance: { institution: 'IMSS', nss: '12345678901', policyNumber: '', clinic: 'UMF 1' },
+          rescueNotes: 'Alergia severa a penicilina',
+        };
+      },
     });
 
     const pubOk = await request(app).get(`/api/v1/public/${validToken}`);
@@ -236,6 +262,29 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
       fullName: 'Carlos Mendoza',
       email: 'carlos@moto.mx',
       phone: '+52 55 1234 5678',
+      emergencyProfile: {
+        birthDate: '1994-06-15',
+        bloodType: 'O+',
+        organDonor: 'yes',
+        cityState: 'CDMX',
+        contact1: {
+          name: 'Martha Mendoza',
+          phone: '+52 55 9876 5432',
+          relationship: 'mama',
+          relationshipCustom: '',
+        },
+        contact2: {
+          name: 'Luis Mendoza',
+          phone: '+52 55 1122 3344',
+          relationship: 'hermano',
+          relationshipCustom: '',
+        },
+        allergies: { noneKnown: false, selected: ['Penicilina'], custom: [] },
+        conditions: { noneKnown: false, selected: ['Diabetes (azúcar)'], custom: ['Rinitis'] },
+        medications: { noneKnown: false, items: ['Metformina 850 mg'] },
+        insurance: { institution: 'IMSS', nss: '12345678901', policyNumber: '', clinic: 'UMF 1' },
+        rescueNotes: 'Alergia severa a penicilina',
+      },
       documents: [
         {
           id: '00000000-0000-4000-8000-000000000020',
@@ -519,5 +568,70 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
       hasCustomCardTheme: false,
     });
     expect(storedOverride).toBeNull();
+  });
+
+  it('valida datos médicos, contactos de emergencia y NSS en PUT /api/v1/owners/:id', async () => {
+    process.env.ADMIN_USERNAME = 'admin';
+    process.env.ADMIN_PASSWORD = 'SecretPassword123!';
+    process.env.SESSION_SECRET = 'test-session-secret-0123456789abcdef';
+
+    const ownerId = '550e8400-e29b-41d4-a716-446655440099';
+    let savedEmergency: unknown = null;
+
+    const mockDb = {
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [{ id: ownerId }],
+          }),
+        }),
+      }),
+      update: () => ({
+        set: (values: { emergencyProfile?: unknown }) => ({
+          where: async () => {
+            savedEmergency = values.emergencyProfile ?? null;
+          },
+        }),
+      }),
+    };
+    setDbForTests(mockDb as unknown as AppDb);
+
+    const loginRes = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ username: 'admin', password: 'SecretPassword123!' });
+    const token = loginRes.body.sessionToken as string;
+
+    const invalidPhone = await request(app)
+      .put(`/api/v1/owners/${ownerId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        firstName: 'Carlos',
+        lastName: 'Mendoza',
+        emergencyProfile: {
+          contact1: { name: 'Ana', phone: 'no-valido', relationship: 'mama' },
+        },
+      });
+    expect(invalidPhone.status).toBe(400);
+
+    const validUpdate = await request(app)
+      .put(`/api/v1/owners/${ownerId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        firstName: 'Carlos',
+        lastName: 'Mendoza',
+        emergencyProfile: {
+          birthDate: '1994-06-15',
+          bloodType: 'O+',
+          organDonor: 'yes',
+          contact1: { name: 'Martha Ruiz', phone: '+52 55 1234 5678', relationship: 'mama' },
+          insurance: { institution: 'IMSS', nss: '12345678901' },
+        },
+      });
+    expect(validUpdate.status).toBe(200);
+    expect(validUpdate.body.owner.emergencyProfile).toMatchObject({
+      bloodType: 'O+',
+      insurance: { institution: 'IMSS', nss: '12345678901' },
+    });
+    expect(savedEmergency).toMatchObject({ bloodType: 'O+' });
   });
 });

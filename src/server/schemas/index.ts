@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  BLOOD_TYPE_OPTIONS,
+  calculateAgeFromBirthDate,
+  RELATIONSHIP_OPTIONS,
+} from '../../lib/emergency-profile.ts';
 import { QR_STYLE_IDS } from '../../lib/qr-styled.ts';
 import {
   EMAIL_REGEX,
@@ -146,6 +151,76 @@ export const ownerCardThemeOverrideSchema = z
     pageBg: z.enum(['slate', 'white', 'warm', 'dark']).nullable().optional(),
     showLabelPreviewButton: z.boolean().nullable().optional(),
     footerNote: z.string().trim().max(200).nullable().optional(),
+  })
+  .nullable()
+  .optional();
+
+const emergencyRelationshipIds = RELATIONSHIP_OPTIONS.map((r) => r.id) as [
+  (typeof RELATIONSHIP_OPTIONS)[number]['id'],
+  ...(typeof RELATIONSHIP_OPTIONS)[number]['id'][],
+];
+
+const emergencyContactSchema = z.object({
+  name: z.string().trim().max(100).optional().default(''),
+  phone: z
+    .string()
+    .trim()
+    .max(30, 'El teléfono del contacto de emergencia no puede exceder 30 caracteres.')
+    .refine(
+      (val) => val === '' || PHONE_REGEX.test(val),
+      'Formato de teléfono inválido en contacto de emergencia.',
+    )
+    .optional()
+    .default(''),
+  relationship: z
+    .union([z.enum(emergencyRelationshipIds), z.literal('')])
+    .optional()
+    .default(''),
+  relationshipCustom: z.string().trim().max(40).optional().default(''),
+});
+
+const emergencyTagGroupSchema = z.object({
+  noneKnown: z.boolean().optional().default(false),
+  selected: z.array(z.string().trim().max(80)).max(15).optional().default([]),
+  custom: z.array(z.string().trim().max(80)).max(20).optional().default([]),
+});
+
+export const emergencyProfileSchema = z
+  .object({
+    birthDate: z
+      .string()
+      .trim()
+      .refine(
+        (val) => val === '' || calculateAgeFromBirthDate(val) !== null,
+        'La fecha de nacimiento no es válida.',
+      )
+      .optional()
+      .default(''),
+    bloodType: z
+      .union([z.enum(BLOOD_TYPE_OPTIONS), z.literal('')])
+      .optional()
+      .default(''),
+    organDonor: z.enum(['unspecified', 'yes', 'no']).optional().default('unspecified'),
+    cityState: z.string().trim().max(80).optional().default(''),
+    contact1: emergencyContactSchema.optional(),
+    contact2: emergencyContactSchema.optional(),
+    allergies: emergencyTagGroupSchema.optional(),
+    conditions: emergencyTagGroupSchema.optional(),
+    medications: z
+      .object({
+        noneKnown: z.boolean().optional().default(false),
+        items: z.array(z.string().trim().max(80)).max(20).optional().default([]),
+      })
+      .optional(),
+    insurance: z
+      .object({
+        institution: z.string().trim().max(80).optional().default(''),
+        nss: z.string().trim().max(40).optional().default(''),
+        policyNumber: z.string().trim().max(60).optional().default(''),
+        clinic: z.string().trim().max(80).optional().default(''),
+      })
+      .optional(),
+    rescueNotes: z.string().trim().max(280).optional().default(''),
   })
   .nullable()
   .optional();

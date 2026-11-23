@@ -1,3 +1,4 @@
+import type { OwnerEmergencyProfile } from '@/src/lib/emergency-profile';
 import type {
   OwnerCardThemeOverride,
   PublicCardTheme,
@@ -79,6 +80,7 @@ export interface OwnerSummary {
   scanCount: number;
   lastScannedAt: string | null;
   hasCustomCardTheme?: boolean;
+  hasEmergencyProfile?: boolean;
   publicToken: string | null;
   publicUrl: string | null;
   createdAt: string;
@@ -98,6 +100,7 @@ export interface OwnerDetailResponse {
     scanCount: number;
     lastScannedAt: string | null;
     cardThemeOverride?: OwnerCardThemeOverride | null;
+    emergencyProfile?: OwnerEmergencyProfile | null;
     publicToken: string | null;
     publicUrl: string | null;
     createdAt: string;
@@ -118,6 +121,7 @@ export interface PublicCardData {
   fullName: string;
   email: string | null;
   phone: string | null;
+  emergencyProfile?: OwnerEmergencyProfile | null;
   documents: PublicCardDocument[];
 }
 
@@ -219,6 +223,7 @@ export const apiClient = {
       email: string;
       phone: string;
       cardThemeOverride?: OwnerCardThemeOverride | null;
+      emergencyProfile?: OwnerEmergencyProfile | null;
     },
   ) =>
     requestJson<{ owner: OwnerDetailResponse['owner'] }>(`/api/v1/owners/${id}`, {
