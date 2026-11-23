@@ -40,6 +40,14 @@ const upload = multer({
   },
 });
 
+const uploadLogo = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 2 * 1024 * 1024,
+    files: 1,
+  },
+});
+
 export const ownersRouter = Router();
 ownersRouter.use(requireAdmin);
 
@@ -106,6 +114,7 @@ ownersRouter.get('/', async (req, res, next) => {
           lastScannedAt: owners.lastScannedAt,
           cardThemeOverride: owners.cardThemeOverride,
           emergencyProfile: owners.emergencyProfile,
+          logoStorageKey: owners.logoStorageKey,
           createdAt: owners.createdAt,
           updatedAt: owners.updatedAt,
           documentCount: sql<number>`(SELECT COUNT(*)::int FROM owner_documents d WHERE d.owner_id = ${owners.id})`,
@@ -164,6 +173,7 @@ ownersRouter.get('/', async (req, res, next) => {
           scanCount: Number(row.scanCount ?? 0),
           lastScannedAt: row.lastScannedAt ? toIso(row.lastScannedAt) : null,
           hasCustomCardTheme: Boolean(normalizeOwnerCardOverride(row.cardThemeOverride)),
+          hasCustomLogo: Boolean(row.logoStorageKey),
           hasEmergencyProfile: Boolean(normalizeEmergencyProfile(row.emergencyProfile)),
           publicToken,
           publicUrl: publicToken ? buildPublicCardUrl(publicToken, origin) : null,
@@ -252,6 +262,7 @@ ownersRouter.get('/:id', async (req, res, next) => {
         scanCount: Number(owner.scanCount ?? 0),
         lastScannedAt: owner.lastScannedAt ? toIso(owner.lastScannedAt) : null,
         cardThemeOverride: normalizeOwnerCardOverride(owner.cardThemeOverride),
+        hasCustomLogo: Boolean(owner.logoStorageKey),
         emergencyProfile: normalizeEmergencyProfile(owner.emergencyProfile),
         publicToken,
         publicUrl: publicToken ? buildPublicCardUrl(publicToken, origin) : null,
@@ -697,6 +708,160 @@ ownersRouter.put('/:id/card-theme', async (req, res, next) => {
   }
 });
 
+ownersRouter.get('/:id/card-logo', async (req, res, next) => {
+  try {
+    const idCheck = uuidParamSchema.safeParse(req.params.id);
+    if (!idCheck.success) {
+      res.status(400).json({ error: 'Identificador inválido.' });
+      return;
+    }
+
+    const db = getDb();
+    const rows = await db
+      .select({
+        logoStorageKey: owners.logoStorageKey,
+        logoMimeType: owners.logoMimeType,
+      })
+      .from(owners)
+      .where(eq(owners.id, idCheck.data))
+      .limit(1);
+
+    const row = rows[0];
+    if (!row?.logoStorageKey || !row.logoMimeType) {
+      res.status(404).json({ error: 'Logo o foto individual no configurada.' });
+      return;
+    }
+
+    const buffer = await getStorageProvider().getObject(row.logoStorageKey);
+    res.setHeader('Content-Type', row.logoMimeType);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
+ownersRouter.post('/:id/card-logo', uploadLogo.single('logo'), async (req, res, next) => {
+  let uploadedKey: string | null = null;
+
+  try {
+    const idCheck = uuidParamSchema.safeParse(req.params.id);
+    if (!idCheck.success) {
+      res.status(400).json({ error: 'Identificador inválido.' });
+      return;
+    }
+
+    if (!req.file) {
+      res.status(400).json({ error: 'Debes seleccionar una imagen JPG o PNG.' });
+      return;
+    }
+
+    let validated;
+    try {
+      validated = await validateUploadedImage(req.file.buffer, req.file.originalname);
+    } catch (validationErr) {
+      res.status(400).json({
+        error:
+          validationErr instanceof Error ? validationErr.message : 'Imagen inválida.',
+      });
+      return;
+    }
+
+    const db = getDb();
+    const existingRows = await db
+      .select({
+        id: owners.id,
+        logoStorageKey: owners.logoStorageKey,
+      })
+      .from(owners)
+      .where(eq(owners.id, idCheck.data))
+      .limit(1);
+
+    const existing = existingRows[0];
+    if (!existing) {
+      res.status(404).json({ error: 'Propietario no encontrado.' });
+      return;
+    }
+
+    const storage = getStorageProvider();
+    const ext = validated.mimeType === 'image/png' ? 'png' : 'jpg';
+    const newKey = `branding/owners/${idCheck.data}/logo-${crypto.randomUUID()}.${ext}`;
+    await storage.putObject(newKey, req.file.buffer, validated.mimeType);
+    uploadedKey = newKey;
+
+    const now = new Date();
+    await db
+      .update(owners)
+      .set({
+        logoStorageKey: newKey,
+        logoMimeType: validated.mimeType,
+        updatedAt: now,
+      })
+      .where(eq(owners.id, idCheck.data));
+
+    if (existing.logoStorageKey && existing.logoStorageKey !== newKey) {
+      await storage.deleteObject(existing.logoStorageKey).catch(() => undefined);
+    }
+
+    res.json({
+      hasCustomLogo: true,
+      updatedAt: now.toISOString(),
+    });
+  } catch (err) {
+    if (uploadedKey) {
+      await getStorageProvider().deleteObject(uploadedKey).catch(() => undefined);
+    }
+    next(err);
+  }
+});
+
+ownersRouter.delete('/:id/card-logo', async (req, res, next) => {
+  try {
+    const idCheck = uuidParamSchema.safeParse(req.params.id);
+    if (!idCheck.success) {
+      res.status(400).json({ error: 'Identificador inválido.' });
+      return;
+    }
+
+    const db = getDb();
+    const existingRows = await db
+      .select({
+        id: owners.id,
+        logoStorageKey: owners.logoStorageKey,
+      })
+      .from(owners)
+      .where(eq(owners.id, idCheck.data))
+      .limit(1);
+
+    const existing = existingRows[0];
+    if (!existing) {
+      res.status(404).json({ error: 'Propietario no encontrado.' });
+      return;
+    }
+
+    const now = new Date();
+    await db
+      .update(owners)
+      .set({
+        logoStorageKey: null,
+        logoMimeType: null,
+        updatedAt: now,
+      })
+      .where(eq(owners.id, idCheck.data));
+
+    if (existing.logoStorageKey) {
+      await getStorageProvider().deleteObject(existing.logoStorageKey).catch(() => undefined);
+    }
+
+    res.json({
+      hasCustomLogo: false,
+      updatedAt: now.toISOString(),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 ownersRouter.patch('/:id/status', async (req, res, next) => {
   try {
     const idCheck = uuidParamSchema.safeParse(req.params.id);
@@ -805,12 +970,16 @@ ownersRouter.delete('/:id', async (req, res, next) => {
 
     const db = getDb();
     const existingRows = await db
-      .select({ id: owners.id })
+      .select({
+        id: owners.id,
+        logoStorageKey: owners.logoStorageKey,
+      })
       .from(owners)
       .where(eq(owners.id, idCheck.data))
       .limit(1);
 
-    if (!existingRows[0]) {
+    const existing = existingRows[0];
+    if (!existing) {
       res.status(404).json({ error: 'Propietario no encontrado.' });
       return;
     }
@@ -826,12 +995,17 @@ ownersRouter.delete('/:id', async (req, res, next) => {
     // Cascade deletes labels and owner_documents rows in PostgreSQL
     await db.delete(owners).where(eq(owners.id, idCheck.data));
 
-    if (docRows.length > 0) {
+    const keysToDelete = [
+      ...docRows.map((d) => d.storageKey),
+      ...(existing.logoStorageKey ? [existing.logoStorageKey] : []),
+    ];
+
+    if (keysToDelete.length > 0) {
       const storage = getStorageProvider();
-      for (const doc of docRows) {
-        await storage.deleteObject(doc.storageKey).catch((storageErr) => {
+      for (const key of keysToDelete) {
+        await storage.deleteObject(key).catch((storageErr) => {
           console.error(
-            `No se pudo eliminar el archivo ${doc.storageKey} del almacenamiento:`,
+            `No se pudo eliminar el archivo ${key} del almacenamiento:`,
             storageErr,
           );
         });

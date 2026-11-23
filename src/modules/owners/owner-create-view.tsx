@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Save, Trash2, Upload } from 'lucide-react';
+import { CircularLogoCropperDialog } from '@/src/components/circular-logo-cropper-dialog';
 import { OwnerCardThemeControl } from '@/src/components/owner-card-theme-control';
 import { OwnerEmergencyFields } from '@/src/components/owner-emergency-fields';
 import { QRLabelCanvas } from '@/src/components/qr-label-canvas';
@@ -30,11 +31,11 @@ import {
   type LabelGeometry,
 } from '@/src/lib/qr-geometry';
 import { renderStyledQrSvg, type QrStyle } from '@/src/lib/qr-styled';
+import { validateEmergencyPhone } from '@/src/lib/phone-countries';
 import {
   formatFileSize,
   isValidPersonName,
   normalizePersonName,
-  PHONE_REGEX,
 } from '@/src/lib/utils';
 
 interface DraftDocument {
@@ -63,6 +64,11 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
   const [qrStyle, setQrStyle] = useState<QrStyle>('classic');
   const [geometry, setGeometry] = useState<LabelGeometry>({ x: 65, y: 20, width: 20, height: 20 });
   const [cardThemeOverride, setCardThemeOverride] = useState<OwnerCardThemeOverride | null>(null);
+  const [cropSource, setCropSource] = useState<{ url: string; fileName: string } | null>(null);
+  const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
+  const [pendingLogoPreviewUrl, setPendingLogoPreviewUrl] = useState<string | null>(null);
+  const pendingLogoUrlRef = useRef<string | null>(null);
+  const cropUrlRef = useRef<string | null>(null);
   const [emergencyProfile, setEmergencyProfile] = useState<OwnerEmergencyProfile>(
     createEmptyEmergencyProfile,
   );
@@ -111,6 +117,17 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
       }
     };
   }, [draftDocs]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingLogoUrlRef.current) {
+        URL.revokeObjectURL(pendingLogoUrlRef.current);
+      }
+      if (cropUrlRef.current) {
+        URL.revokeObjectURL(cropUrlRef.current);
+      }
+    };
+  }, []);
 
   const activeTemplate = templates.find((t) => t.id === selectedTemplateId) || null;
 
@@ -174,6 +191,55 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
     );
   };
 
+  const handleSelectOwnerLogoFile = (file: File | null) => {
+    if (!file) return;
+    setError(null);
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    if (!['jpg', 'jpeg', 'png'].includes(ext)) {
+      setError('La foto o logo debe estar en formato JPG, JPEG o PNG.');
+      return;
+    }
+    if (file.size > MAX_SIZE) {
+      setError('La imagen seleccionada excede el tamaño máximo de 4 MB.');
+      return;
+    }
+
+    if (cropUrlRef.current) {
+      URL.revokeObjectURL(cropUrlRef.current);
+    }
+    const url = URL.createObjectURL(file);
+    cropUrlRef.current = url;
+    setCropSource({ url, fileName: file.name });
+  };
+
+  const handleCancelCrop = () => {
+    if (cropUrlRef.current) {
+      URL.revokeObjectURL(cropUrlRef.current);
+      cropUrlRef.current = null;
+    }
+    setCropSource(null);
+  };
+
+  const handleConfirmOwnerLogoCrop = (croppedFile: File) => {
+    if (pendingLogoUrlRef.current) {
+      URL.revokeObjectURL(pendingLogoUrlRef.current);
+    }
+    const nextPreview = URL.createObjectURL(croppedFile);
+    pendingLogoUrlRef.current = nextPreview;
+    setPendingLogoFile(croppedFile);
+    setPendingLogoPreviewUrl(nextPreview);
+    handleCancelCrop();
+  };
+
+  const handleRemovePendingOwnerLogo = () => {
+    if (pendingLogoUrlRef.current) {
+      URL.revokeObjectURL(pendingLogoUrlRef.current);
+      pendingLogoUrlRef.current = null;
+    }
+    setPendingLogoFile(null);
+    setPendingLogoPreviewUrl(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -192,14 +258,11 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
       setError('Los apellidos solo deben contener letras.');
       return;
     }
-    if (
-      (emergencyProfile.contact1.phone.trim() &&
-        !PHONE_REGEX.test(emergencyProfile.contact1.phone.trim())) ||
-      (emergencyProfile.contact2.phone.trim() &&
-        !PHONE_REGEX.test(emergencyProfile.contact2.phone.trim()))
-    ) {
+    const c1PhoneErr = validateEmergencyPhone(emergencyProfile.contact1.phone);
+    const c2PhoneErr = validateEmergencyPhone(emergencyProfile.contact2.phone);
+    if (c1PhoneErr || c2PhoneErr) {
       setLeftTab('emergency');
-      setError('El teléfono de alguno de los contactos de emergencia tiene formato inválido.');
+      setError(`Contacto de emergencia ${c1PhoneErr ? '1' : '2'}: ${c1PhoneErr || c2PhoneErr}`);
       return;
     }
 
@@ -256,6 +319,12 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
       }
 
       const created = await apiClient.createOwnerWithLabel(fd);
+
+      if (pendingLogoFile) {
+        const logoFd = new FormData();
+        logoFd.append('logo', pendingLogoFile);
+        await apiClient.uploadOwnerCardLogo(created.owner.id, logoFd);
+      }
 
       for (const extraDoc of overflowDocs) {
         const docFd = new FormData();
@@ -373,6 +442,12 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
                 <OwnerCardThemeControl
                   value={cardThemeOverride}
                   onChange={setCardThemeOverride}
+                  logoControl={{
+                    hasCustomLogo: Boolean(pendingLogoFile),
+                    previewUrl: pendingLogoPreviewUrl,
+                    onSelectFile: handleSelectOwnerLogoFile,
+                    onRemoveCustomLogo: handleRemovePendingOwnerLogo,
+                  }}
                   disabled={saving}
                 />
               </section>
@@ -530,6 +605,14 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
           )}
         </div>
       </div>
+
+      <CircularLogoCropperDialog
+        open={Boolean(cropSource)}
+        imageSrc={cropSource?.url ?? null}
+        fileName={cropSource?.fileName}
+        onCancel={handleCancelCrop}
+        onConfirm={handleConfirmOwnerLogoCrop}
+      />
     </form>
   );
 }

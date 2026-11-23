@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowUpRight, Palette } from 'lucide-react';
+import { ArrowUpRight, Palette, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
@@ -9,10 +9,19 @@ import {
   type PageBackgroundMode,
 } from '@/src/lib/public-card-theme';
 
+export interface OwnerCardLogoControlProps {
+  hasCustomLogo: boolean;
+  previewUrl: string | null;
+  uploading?: boolean;
+  onSelectFile: (file: File | null) => void;
+  onRemoveCustomLogo: () => void;
+}
+
 interface OwnerCardThemeControlProps {
   value: OwnerCardThemeOverride | null;
   onChange: (next: OwnerCardThemeOverride | null) => void;
   onOpenFullEditor?: () => void;
+  logoControl?: OwnerCardLogoControlProps;
   disabled?: boolean;
 }
 
@@ -20,6 +29,7 @@ export function OwnerCardThemeControl({
   value,
   onChange,
   onOpenFullEditor,
+  logoControl,
   disabled = false,
 }: OwnerCardThemeControlProps) {
   const isCustom = Boolean(value && value.useGlobalTheme === false);
@@ -44,7 +54,7 @@ export function OwnerCardThemeControl({
               Apariencia al escanear QR
             </p>
             <p className="text-xs text-slate-500">
-              Usa el diseño global o define una ficha propia para este propietario.
+              Usa los colores y logo global de tu marca, o personaliza esta ficha de forma individual.
             </p>
           </div>
         </div>
@@ -76,6 +86,78 @@ export function OwnerCardThemeControl({
           </button>
         </div>
       </div>
+
+      {logoControl && (
+        <div className="pt-2 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            {logoControl.previewUrl ? (
+              <img
+                src={logoControl.previewUrl}
+                alt="Foto o logo individual"
+                className="h-10 w-10 rounded-full object-cover border border-slate-300 bg-white shrink-0"
+              />
+            ) : (
+              <div className="h-10 w-10 rounded-full border border-dashed border-slate-300 bg-white flex items-center justify-center text-[10px] font-medium text-slate-400 shrink-0">
+                Global
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-800">
+                {logoControl.hasCustomLogo
+                  ? 'Foto o logo circular individual'
+                  : 'Círculo del encabezado: usa logo global'}
+              </p>
+              <p className="text-[11px] text-slate-500 truncate">
+                {logoControl.hasCustomLogo
+                  ? 'Solo aplica para este propietario.'
+                  : 'Puedes subirle su selfie o logo propio sin afectar a otros.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+            <label
+              className={`inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50 cursor-pointer ${
+                disabled || logoControl.uploading ? 'opacity-50 pointer-events-none' : ''
+              }`}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              <span>
+                {logoControl.uploading
+                  ? 'Subiendo...'
+                  : logoControl.hasCustomLogo
+                    ? 'Cambiar foto / logo'
+                    : 'Subir foto / logo'}
+              </span>
+              <input
+                type="file"
+                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                className="sr-only"
+                disabled={disabled || logoControl.uploading}
+                onChange={(e) => {
+                  logoControl.onSelectFile(e.target.files?.[0] ?? null);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+
+            {logoControl.hasCustomLogo && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={disabled || logoControl.uploading}
+                onClick={logoControl.onRemoveCustomLogo}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 px-2"
+                title="Quitar imagen individual y volver a usar el logo global"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Usar global</span>
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       {isCustom && value && (
         <div className="pt-2 border-t border-slate-200 space-y-3">

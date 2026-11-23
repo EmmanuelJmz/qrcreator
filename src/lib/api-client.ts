@@ -80,6 +80,7 @@ export interface OwnerSummary {
   scanCount: number;
   lastScannedAt: string | null;
   hasCustomCardTheme?: boolean;
+  hasCustomLogo?: boolean;
   hasEmergencyProfile?: boolean;
   publicToken: string | null;
   publicUrl: string | null;
@@ -100,6 +101,7 @@ export interface OwnerDetailResponse {
     scanCount: number;
     lastScannedAt: string | null;
     cardThemeOverride?: OwnerCardThemeOverride | null;
+    hasCustomLogo?: boolean;
     emergencyProfile?: OwnerEmergencyProfile | null;
     publicToken: string | null;
     publicUrl: string | null;
@@ -252,6 +254,33 @@ export const apiClient = {
     requestJson<{ ok: boolean; deletedDocuments: number }>(`/api/v1/owners/${id}`, {
       method: 'DELETE',
     }),
+  fetchOwnerCardLogoUrl: async (ownerId: string): Promise<string | null> => {
+    const res = await fetch(`/api/v1/owners/${ownerId}/card-logo`, {
+      credentials: 'include',
+      headers: getAuthHeaders(),
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      throw new ApiError('No se pudo cargar el logo o foto del propietario.', res.status);
+    }
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  },
+  uploadOwnerCardLogo: (ownerId: string, formData: FormData) =>
+    requestJson<{ hasCustomLogo: boolean; updatedAt: string }>(
+      `/api/v1/owners/${ownerId}/card-logo`,
+      {
+        method: 'POST',
+        body: formData,
+      },
+    ),
+  deleteOwnerCardLogo: (ownerId: string) =>
+    requestJson<{ hasCustomLogo: boolean; updatedAt: string }>(
+      `/api/v1/owners/${ownerId}/card-logo`,
+      {
+        method: 'DELETE',
+      },
+    ),
 
   uploadDocuments: (ownerId: string, formData: FormData) =>
     requestJson<{ documents: OwnerDocumentItem[] }>(`/api/v1/owners/${ownerId}/documents`, {

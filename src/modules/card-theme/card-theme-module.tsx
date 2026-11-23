@@ -173,7 +173,10 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
   const [savedThemeSnapshot, setSavedThemeSnapshot] = useState<PublicCardTheme>(
     DEFAULT_PUBLIC_CARD_THEME,
   );
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [globalLogoUrl, setGlobalLogoUrl] = useState<string | null>(null);
+  const [ownerLogoUrl, setOwnerLogoUrl] = useState<string | null>(null);
+  const ownerLogoUrlRef = useRef<string | null>(null);
+  const [ownerHasCustomLogo, setOwnerHasCustomLogo] = useState(false);
   const [migrationPending, setMigrationPending] = useState(false);
 
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
@@ -215,6 +218,23 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
     };
   }, [cropSource]);
 
+  useEffect(() => {
+    return () => {
+      if (ownerLogoUrlRef.current) {
+        URL.revokeObjectURL(ownerLogoUrlRef.current);
+        ownerLogoUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  const replaceOwnerLogoUrl = useCallback((nextUrl: string | null) => {
+    if (ownerLogoUrlRef.current && ownerLogoUrlRef.current !== nextUrl) {
+      URL.revokeObjectURL(ownerLogoUrlRef.current);
+    }
+    ownerLogoUrlRef.current = nextUrl;
+    setOwnerLogoUrl(nextUrl);
+  }, []);
+
   const updateDraftTheme = useCallback(
     (updater: (prev: PublicCardTheme) => PublicCardTheme) => {
       setTheme((prev) => {
@@ -252,7 +272,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
         const normalizedGlobal = enforceCircularTheme(themeRes.theme);
         globalThemeRef.current = normalizedGlobal;
         setGlobalTheme(normalizedGlobal);
-        setLogoUrl(themeRes.logoUrl);
+        setGlobalLogoUrl(themeRes.logoUrl);
         setMigrationPending(Boolean(themeRes.migrationPending));
         setOwners(ownersRes.owners);
       } catch (err) {
@@ -287,6 +307,8 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
           : saved,
       );
       setOwnerHasCustom(false);
+      setOwnerHasCustomLogo(false);
+      replaceOwnerLogoUrl(null);
       setPreviewCard(PREVIEW_SAMPLE_CARD);
       return;
     }
@@ -300,9 +322,22 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
         if (cancelled) return;
         const override = detail.owner.cardThemeOverride ?? null;
         const currentGlobal = globalThemeRef.current;
-        const merged = enforceCircularTheme(
-          mergeThemeWithOwnerOverride(currentGlobal, override),
-        );
+        const hasOwnLogo = Boolean(detail.owner.hasCustomLogo);
+        const ownLogoBlobUrl = hasOwnLogo
+          ? await apiClient.fetchOwnerCardLogoUrl(scopeId).catch(() => null)
+          : null;
+        if (cancelled) {
+          if (ownLogoBlobUrl) URL.revokeObjectURL(ownLogoBlobUrl);
+          return;
+        }
+
+        replaceOwnerLogoUrl(ownLogoBlobUrl);
+        setOwnerHasCustomLogo(hasOwnLogo);
+
+        const merged = enforceCircularTheme({
+          ...mergeThemeWithOwnerOverride(currentGlobal, override),
+          hasCustomLogo: hasOwnLogo || currentGlobal.hasCustomLogo,
+        });
         savedScopeThemeRef.current = merged;
         setSavedThemeSnapshot(merged);
         setOwnerHasCustom(Boolean(override && override.useGlobalTheme === false));
@@ -310,7 +345,10 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
         const draft = draftsByScopeRef.current[scopeId];
         setTheme(
           draft
-            ? enforceCircularTheme({ ...draft, hasCustomLogo: merged.hasCustomLogo })
+            ? enforceCircularTheme({
+                ...draft,
+                hasCustomLogo: hasOwnLogo || currentGlobal.hasCustomLogo,
+              })
             : merged,
         );
         setPreviewCard({
@@ -344,12 +382,17 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
     return () => {
       cancelled = true;
     };
-  }, [scopeId, loading]);
+  }, [scopeId, loading, replaceOwnerLogoUrl]);
 
   const isGlobalScope = scopeId === GLOBAL_SCOPE_VALUE;
   const activeOwnerSummary = !isGlobalScope
     ? owners.find((o) => o.id === scopeId) ?? null
     : null;
+  const activeLogoUrl = isGlobalScope
+    ? globalLogoUrl
+    : ownerHasCustomLogo && ownerLogoUrl
+      ? ownerLogoUrl
+      : globalLogoUrl;
 
   const scopeOptions = [GLOBAL_SCOPE_VALUE, ...owners.map((o) => o.id)];
   const currentScopeIdx = scopeOptions.indexOf(scopeId);
@@ -388,7 +431,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
         setGlobalTheme(saved);
         setSavedThemeSnapshot(saved);
         setTheme(saved);
-        setLogoUrl(res.logoUrl);
+        setGlobalLogoUrl(res.logoUrl);
         setMigrationPending(false);
         clearDraftForScope(GLOBAL_SCOPE_VALUE);
         setFeedback(
@@ -475,11 +518,11 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
   };
 
   const handleOpenCropExistingLogo = () => {
-    if (!logoUrl) return;
+    if (!activeLogoUrl) return;
     setError(null);
     setCropSource({
-      url: logoUrl,
-      fileName: 'logo-actual.png',
+      url: activeLogoUrl,
+      fileName: isGlobalScope ? 'logo-global.png' : 'foto-logo-propietario.png',
       isObjectUrl: false,
     });
   };
@@ -491,41 +534,71 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
     try {
       const fd = new FormData();
       fd.append('logo', croppedFile);
-      const res = await apiClient.uploadCardLogo(fd);
 
-      // Update global/saved logo state WITHOUT wiping unsaved theme draft edits
-      const nextGlobal = enforceCircularTheme({
-        ...globalThemeRef.current,
-        hasCustomLogo: res.theme.hasCustomLogo,
-        logoVisible: true,
-      });
-      globalThemeRef.current = nextGlobal;
-      savedScopeThemeRef.current = enforceCircularTheme({
-        ...savedScopeThemeRef.current,
-        hasCustomLogo: res.theme.hasCustomLogo,
-      });
-      setGlobalTheme(nextGlobal);
-      setSavedThemeSnapshot(savedScopeThemeRef.current);
-      setLogoUrl(res.logoUrl);
-      setMigrationPending(false);
+      if (isGlobalScope) {
+        const res = await apiClient.uploadCardLogo(fd);
 
-      for (const key of Object.keys(draftsByScopeRef.current)) {
-        draftsByScopeRef.current[key] = enforceCircularTheme({
-          ...draftsByScopeRef.current[key],
+        // Update global/saved logo state WITHOUT wiping unsaved theme draft edits
+        const nextGlobal = enforceCircularTheme({
+          ...globalThemeRef.current,
+          hasCustomLogo: res.theme.hasCustomLogo,
+          logoVisible: true,
+        });
+        globalThemeRef.current = nextGlobal;
+        savedScopeThemeRef.current = enforceCircularTheme({
+          ...savedScopeThemeRef.current,
           hasCustomLogo: res.theme.hasCustomLogo,
         });
-      }
-      updateDraftTheme((prev) => ({
-        ...prev,
-        logoVisible: true,
-        logoShape: 'circle',
-        hasCustomLogo: res.theme.hasCustomLogo,
-      }));
+        setGlobalTheme(nextGlobal);
+        setSavedThemeSnapshot(savedScopeThemeRef.current);
+        setGlobalLogoUrl(res.logoUrl);
+        setMigrationPending(false);
 
-      setCropSource(null);
-      setFeedback('Logo circular recortado y aplicado. Recuerda guardar si hiciste otros cambios.');
+        for (const key of Object.keys(draftsByScopeRef.current)) {
+          draftsByScopeRef.current[key] = enforceCircularTheme({
+            ...draftsByScopeRef.current[key],
+            hasCustomLogo: res.theme.hasCustomLogo,
+          });
+        }
+        updateDraftTheme((prev) => ({
+          ...prev,
+          logoVisible: true,
+          logoShape: 'circle',
+          hasCustomLogo: res.theme.hasCustomLogo,
+        }));
+
+        setCropSource(null);
+        setFeedback('Logo global circular recortado y aplicado para todas las fichas que heredan el global.');
+      } else {
+        await apiClient.uploadOwnerCardLogo(scopeId, fd);
+        const nextBlobUrl = URL.createObjectURL(croppedFile);
+        replaceOwnerLogoUrl(nextBlobUrl);
+        setOwnerHasCustomLogo(true);
+
+        savedScopeThemeRef.current = enforceCircularTheme({
+          ...savedScopeThemeRef.current,
+          hasCustomLogo: true,
+        });
+        setSavedThemeSnapshot(savedScopeThemeRef.current);
+        setOwners((prev) =>
+          prev.map((o) =>
+            o.id === scopeId ? { ...o, hasCustomLogo: true } : o,
+          ),
+        );
+        updateDraftTheme((prev) => ({
+          ...prev,
+          logoVisible: true,
+          logoShape: 'circle',
+          hasCustomLogo: true,
+        }));
+
+        setCropSource(null);
+        setFeedback(
+          `Imagen circular guardada solo para ${activeOwnerSummary?.fullName || 'este propietario'}. No afecta a los demás.`,
+        );
+      }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo subir el logo.');
+      setError(err instanceof ApiError ? err.message : 'No se pudo subir la imagen.');
     } finally {
       setUploadingLogo(false);
     }
@@ -536,30 +609,55 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
     setError(null);
     setFeedback(null);
     try {
-      const res = await apiClient.deleteCardLogo();
-      const nextGlobal = enforceCircularTheme({
-        ...globalThemeRef.current,
-        hasCustomLogo: res.theme.hasCustomLogo,
-      });
-      globalThemeRef.current = nextGlobal;
-      savedScopeThemeRef.current = enforceCircularTheme({
-        ...savedScopeThemeRef.current,
-        hasCustomLogo: false,
-      });
-      setGlobalTheme(nextGlobal);
-      setSavedThemeSnapshot(savedScopeThemeRef.current);
-      setLogoUrl(null);
-
-      for (const key of Object.keys(draftsByScopeRef.current)) {
-        draftsByScopeRef.current[key] = enforceCircularTheme({
-          ...draftsByScopeRef.current[key],
+      if (isGlobalScope) {
+        const res = await apiClient.deleteCardLogo();
+        const nextGlobal = enforceCircularTheme({
+          ...globalThemeRef.current,
+          hasCustomLogo: res.theme.hasCustomLogo,
+        });
+        globalThemeRef.current = nextGlobal;
+        savedScopeThemeRef.current = enforceCircularTheme({
+          ...savedScopeThemeRef.current,
           hasCustomLogo: false,
         });
+        setGlobalTheme(nextGlobal);
+        setSavedThemeSnapshot(savedScopeThemeRef.current);
+        setGlobalLogoUrl(null);
+
+        for (const key of Object.keys(draftsByScopeRef.current)) {
+          draftsByScopeRef.current[key] = enforceCircularTheme({
+            ...draftsByScopeRef.current[key],
+            hasCustomLogo: false,
+          });
+        }
+        updateDraftTheme((prev) => ({ ...prev, hasCustomLogo: false, logoShape: 'circle' }));
+        setFeedback('Se restauró el ícono de casco predeterminado en el diseño global.');
+      } else {
+        await apiClient.deleteOwnerCardLogo(scopeId);
+        replaceOwnerLogoUrl(null);
+        setOwnerHasCustomLogo(false);
+        const fallbackHasLogo = globalThemeRef.current.hasCustomLogo;
+        savedScopeThemeRef.current = enforceCircularTheme({
+          ...savedScopeThemeRef.current,
+          hasCustomLogo: fallbackHasLogo,
+        });
+        setSavedThemeSnapshot(savedScopeThemeRef.current);
+        setOwners((prev) =>
+          prev.map((o) =>
+            o.id === scopeId ? { ...o, hasCustomLogo: false } : o,
+          ),
+        );
+        updateDraftTheme((prev) => ({
+          ...prev,
+          hasCustomLogo: fallbackHasLogo,
+          logoShape: 'circle',
+        }));
+        setFeedback(
+          `${activeOwnerSummary?.fullName || 'Este propietario'} ahora hereda el logo global.`,
+        );
       }
-      updateDraftTheme((prev) => ({ ...prev, hasCustomLogo: false, logoShape: 'circle' }));
-      setFeedback('Se restauró el ícono de casco predeterminado.');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo quitar el logo.');
+      setError(err instanceof ApiError ? err.message : 'No se pudo quitar la imagen.');
     } finally {
       setUploadingLogo(false);
     }
@@ -807,7 +905,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                 <PublicCardView
                   card={previewCard}
                   theme={theme}
-                  logoUrl={logoUrl}
+                  logoUrl={activeLogoUrl}
                   interactive
                   onThemeChange={updateDraftTheme}
                 />
@@ -1004,10 +1102,16 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
 
                 <div className="space-y-2 pt-1">
                   <Label>
-                    Imagen del logo {isGlobalScope ? '' : '(compartida globalmente)'}
+                    {isGlobalScope
+                      ? 'Logo global de tu marca'
+                      : `Foto o logo individual (${activeOwnerSummary?.fullName || 'propietario'})`}
                   </Label>
                   <p className="text-xs text-slate-500">
-                    Siempre se recorta y muestra en formato circular. Al subir una imagen podrás recortarla, centrarla y hacerla más grande o más chica.
+                    {isGlobalScope
+                      ? 'Se muestra en formato circular para todas las fichas que no tengan una foto o logo propio.'
+                      : ownerHasCustomLogo
+                        ? 'Este propietario usa su propia foto o logo circular (no afecta a los demás).'
+                        : 'Actualmente hereda el logo global. Si subes una foto o logo aquí, aplicará solo para este propietario.'}
                   </p>
                   <div className="flex flex-wrap items-center gap-2 pt-1">
                     <label
@@ -1019,9 +1123,13 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                       <span>
                         {uploadingLogo
                           ? 'Subiendo...'
-                          : theme.hasCustomLogo
-                            ? 'Cambiar y recortar logo'
-                            : 'Subir y recortar logo'}
+                          : isGlobalScope
+                            ? theme.hasCustomLogo
+                              ? 'Cambiar y recortar logo'
+                              : 'Subir y recortar logo'
+                            : ownerHasCustomLogo
+                              ? 'Cambiar foto / logo'
+                              : 'Subir foto / logo individual'}
                       </span>
                       <input
                         type="file"
@@ -1035,7 +1143,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                       />
                     </label>
 
-                    {theme.hasCustomLogo && logoUrl && (
+                    {theme.hasCustomLogo && activeLogoUrl && (
                       <Button
                         type="button"
                         variant="outline"
@@ -1048,7 +1156,7 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                       </Button>
                     )}
 
-                    {theme.hasCustomLogo && (
+                    {(isGlobalScope ? theme.hasCustomLogo : ownerHasCustomLogo) && (
                       <Button
                         type="button"
                         variant="outline"
@@ -1058,7 +1166,9 @@ export function CardThemeModule({ initialOwnerId }: CardThemeModuleProps) {
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                        <span>Usar casco original</span>
+                        <span>
+                          {isGlobalScope ? 'Usar casco original' : 'Volver al logo global'}
+                        </span>
                       </Button>
                     )}
                   </div>

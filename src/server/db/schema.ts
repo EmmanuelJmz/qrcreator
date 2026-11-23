@@ -35,6 +35,8 @@ export const owners = pgTable(
     lastScannedAt: timestamp('last_scanned_at', { withTimezone: true }),
     cardThemeOverride: jsonb('card_theme_override').$type<OwnerCardThemeOverride | null>(),
     emergencyProfile: jsonb('emergency_profile').$type<OwnerEmergencyProfile | null>(),
+    logoStorageKey: varchar('logo_storage_key', { length: 500 }),
+    logoMimeType: varchar('logo_mime_type', { length: 100 }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

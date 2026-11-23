@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Eye, Save, Trash2, Upload } from 'lucide-react';
+import { CircularLogoCropperDialog } from '@/src/components/circular-logo-cropper-dialog';
 import { OwnerCardThemeControl } from '@/src/components/owner-card-theme-control';
 import { OwnerEmergencyFields } from '@/src/components/owner-emergency-fields';
 import { ProtectedImage } from '@/src/components/protected-image';
@@ -26,12 +27,12 @@ import {
   type OwnerEmergencyProfile,
 } from '@/src/lib/emergency-profile';
 import type { OwnerCardThemeOverride } from '@/src/lib/public-card-theme';
+import { validateEmergencyPhone } from '@/src/lib/phone-countries';
 import {
   formatDateShort,
   formatFileSize,
   isValidPersonName,
   normalizePersonName,
-  PHONE_REGEX,
 } from '@/src/lib/utils';
 
 interface OwnerEditDialogProps {
@@ -55,6 +56,12 @@ export function OwnerEditDialog({
   const [lastName, setLastName] = useState('');
   const [documents, setDocuments] = useState<OwnerDocumentItem[]>([]);
   const [cardThemeOverride, setCardThemeOverride] = useState<OwnerCardThemeOverride | null>(null);
+  const [hasCustomLogo, setHasCustomLogo] = useState(false);
+  const [ownerLogoUrl, setOwnerLogoUrl] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [cropSource, setCropSource] = useState<{ url: string; fileName: string } | null>(null);
+  const ownerLogoUrlRef = useRef<string | null>(null);
+  const cropUrlRef = useRef<string | null>(null);
   const [emergencyProfile, setEmergencyProfile] = useState<OwnerEmergencyProfile>(
     createEmptyEmergencyProfile,
   );
@@ -67,30 +74,71 @@ export function OwnerEditDialog({
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  const loadOwnerDetail = useCallback(async (id: string) => {
-    setLoading(true);
-    setError(null);
-    setFeedback(null);
-    setActiveTab('general');
-    try {
-      const res = await apiClient.getOwner(id);
-      setFirstName(res.owner.firstName);
-      setLastName(res.owner.lastName);
-      setCardThemeOverride(res.owner.cardThemeOverride ?? null);
-      setEmergencyProfile(res.owner.emergencyProfile ?? createEmptyEmergencyProfile());
-      setDocuments(res.documents);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Error al cargar el propietario.');
-    } finally {
-      setLoading(false);
+  const replaceOwnerLogoUrl = useCallback((nextUrl: string | null) => {
+    if (ownerLogoUrlRef.current) {
+      URL.revokeObjectURL(ownerLogoUrlRef.current);
     }
+    ownerLogoUrlRef.current = nextUrl;
+    setOwnerLogoUrl(nextUrl);
   }, []);
+
+  const clearCropSource = useCallback(() => {
+    if (cropUrlRef.current) {
+      URL.revokeObjectURL(cropUrlRef.current);
+      cropUrlRef.current = null;
+    }
+    setCropSource(null);
+  }, []);
+
+  const loadOwnerDetail = useCallback(
+    async (id: string) => {
+      setLoading(true);
+      setError(null);
+      setFeedback(null);
+      setActiveTab('general');
+      replaceOwnerLogoUrl(null);
+      clearCropSource();
+      try {
+        const res = await apiClient.getOwner(id);
+        setFirstName(res.owner.firstName);
+        setLastName(res.owner.lastName);
+        setCardThemeOverride(res.owner.cardThemeOverride ?? null);
+        setHasCustomLogo(Boolean(res.owner.hasCustomLogo));
+        setEmergencyProfile(res.owner.emergencyProfile ?? createEmptyEmergencyProfile());
+        setDocuments(res.documents);
+
+        if (res.owner.hasCustomLogo) {
+          const logoBlobUrl = await apiClient.fetchOwnerCardLogoUrl(id).catch(() => null);
+          replaceOwnerLogoUrl(logoBlobUrl);
+        }
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Error al cargar el propietario.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [clearCropSource, replaceOwnerLogoUrl],
+  );
 
   useEffect(() => {
     if (ownerId) {
       void loadOwnerDetail(ownerId);
+    } else {
+      replaceOwnerLogoUrl(null);
+      clearCropSource();
     }
-  }, [ownerId, loadOwnerDetail]);
+  }, [ownerId, loadOwnerDetail, replaceOwnerLogoUrl, clearCropSource]);
+
+  useEffect(() => {
+    return () => {
+      if (ownerLogoUrlRef.current) {
+        URL.revokeObjectURL(ownerLogoUrlRef.current);
+      }
+      if (cropUrlRef.current) {
+        URL.revokeObjectURL(cropUrlRef.current);
+      }
+    };
+  }, []);
 
   const handleSaveInfo = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,14 +158,11 @@ export function OwnerEditDialog({
       setError('Los apellidos solo deben contener letras.');
       return;
     }
-    if (
-      (emergencyProfile.contact1.phone.trim() &&
-        !PHONE_REGEX.test(emergencyProfile.contact1.phone.trim())) ||
-      (emergencyProfile.contact2.phone.trim() &&
-        !PHONE_REGEX.test(emergencyProfile.contact2.phone.trim()))
-    ) {
+    const c1PhoneErr = validateEmergencyPhone(emergencyProfile.contact1.phone);
+    const c2PhoneErr = validateEmergencyPhone(emergencyProfile.contact2.phone);
+    if (c1PhoneErr || c2PhoneErr) {
       setActiveTab('emergency');
-      setError('El teléfono de alguno de los contactos de emergencia tiene formato inválido.');
+      setError(`Contacto de emergencia ${c1PhoneErr ? '1' : '2'}: ${c1PhoneErr || c2PhoneErr}`);
       return;
     }
 
@@ -220,6 +265,70 @@ export function OwnerEditDialog({
     }
   };
 
+  const handleSelectOwnerLogoFile = (file: File | null) => {
+    if (!file) return;
+    setError(null);
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    if (!['jpg', 'jpeg', 'png'].includes(ext)) {
+      setError('La foto o logo debe estar en formato JPG, JPEG o PNG.');
+      return;
+    }
+    if (file.size > MAX_SIZE) {
+      setError('La imagen seleccionada excede el tamaño máximo de 4 MB.');
+      return;
+    }
+
+    if (cropUrlRef.current) {
+      URL.revokeObjectURL(cropUrlRef.current);
+    }
+    const url = URL.createObjectURL(file);
+    cropUrlRef.current = url;
+    setCropSource({ url, fileName: file.name });
+  };
+
+  const handleConfirmOwnerLogoCrop = async (croppedFile: File) => {
+    if (!ownerId) return;
+    setUploadingLogo(true);
+    setError(null);
+    setFeedback(null);
+    try {
+      const fd = new FormData();
+      fd.append('logo', croppedFile);
+      await apiClient.uploadOwnerCardLogo(ownerId, fd);
+      replaceOwnerLogoUrl(URL.createObjectURL(croppedFile));
+      setHasCustomLogo(true);
+      clearCropSource();
+      setFeedback('Foto o logo circular actualizado solo para este propietario.');
+      onSaved();
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : 'No se pudo subir la foto o logo individual.',
+      );
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleRemoveOwnerLogo = async () => {
+    if (!ownerId) return;
+    setUploadingLogo(true);
+    setError(null);
+    setFeedback(null);
+    try {
+      await apiClient.deleteOwnerCardLogo(ownerId);
+      replaceOwnerLogoUrl(null);
+      setHasCustomLogo(false);
+      setFeedback('Se quitó la imagen individual; ahora este propietario usa el logo global.');
+      onSaved();
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : 'No se pudo quitar la foto o logo individual.',
+      );
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
   return (
     <>
       <Dialog open={Boolean(ownerId)} onOpenChange={(open) => !open && onClose()}>
@@ -316,6 +425,13 @@ export function OwnerEditDialog({
                       <OwnerCardThemeControl
                         value={cardThemeOverride}
                         onChange={setCardThemeOverride}
+                        logoControl={{
+                          hasCustomLogo,
+                          previewUrl: ownerLogoUrl,
+                          uploading: uploadingLogo,
+                          onSelectFile: handleSelectOwnerLogoFile,
+                          onRemoveCustomLogo: () => void handleRemoveOwnerLogo(),
+                        }}
                         onOpenFullEditor={
                           ownerId && onOpenFullCardTheme
                             ? () => {
@@ -324,7 +440,7 @@ export function OwnerEditDialog({
                               }
                             : undefined
                         }
-                        disabled={saving}
+                        disabled={saving || uploadingLogo}
                       />
                     </>
                   ) : (
@@ -460,6 +576,15 @@ export function OwnerEditDialog({
           )}
         </DialogContent>
       </Dialog>
+
+      <CircularLogoCropperDialog
+        open={Boolean(cropSource)}
+        imageSrc={cropSource?.url ?? null}
+        fileName={cropSource?.fileName}
+        submitting={uploadingLogo}
+        onCancel={clearCropSource}
+        onConfirm={handleConfirmOwnerLogoCrop}
+      />
     </>
   );
 }

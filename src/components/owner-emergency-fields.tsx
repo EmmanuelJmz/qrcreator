@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Check, HeartPulse, PhoneCall, Plus, ShieldAlert, ShieldCheck, X } from 'lucide-react';
+import { PhoneCountryInput } from '@/src/components/phone-country-input';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
@@ -67,20 +68,16 @@ function ContactCard({
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="space-y-3">
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-phone`} className="text-xs">
             Teléfono
           </Label>
-          <Input
+          <PhoneCountryInput
             id={`${idPrefix}-phone`}
-            type="tel"
             value={contact.phone}
             disabled={disabled}
-            maxLength={30}
-            placeholder="+52 55 1234 5678"
-            className="font-mono tabular-nums"
-            onChange={(e) => onChange({ ...contact, phone: e.target.value })}
+            onChange={(nextPhone) => onChange({ ...contact, phone: nextPhone })}
           />
         </div>
 

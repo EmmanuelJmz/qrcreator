@@ -4,6 +4,7 @@ import {
   calculateAgeFromBirthDate,
   RELATIONSHIP_OPTIONS,
 } from '../../lib/emergency-profile.ts';
+import { validateEmergencyPhone } from '../../lib/phone-countries.ts';
 import { QR_STYLE_IDS } from '../../lib/qr-styled.ts';
 import {
   EMAIL_REGEX,
@@ -167,8 +168,8 @@ const emergencyContactSchema = z.object({
     .trim()
     .max(30, 'El teléfono del contacto de emergencia no puede exceder 30 caracteres.')
     .refine(
-      (val) => val === '' || PHONE_REGEX.test(val),
-      'Formato de teléfono inválido en contacto de emergencia.',
+      (val) => validateEmergencyPhone(val) === null,
+      'El teléfono del contacto debe incluir los dígitos completos según su país (10 dígitos para México +52).',
     )
     .optional()
     .default(''),

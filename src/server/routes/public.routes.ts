@@ -52,6 +52,36 @@ publicRouter.get('/theme-logo', async (_req, res, next) => {
   }
 });
 
+publicRouter.get('/:token/owner-logo', async (req, res, next) => {
+  try {
+    const tokenHash = hashValidTokenOrNull(req.params.token);
+    if (!tokenHash) {
+      res.status(404).json({ error: 'Logo no disponible.' });
+      return;
+    }
+
+    const publicDb = getPublicQueryExecutor();
+    let row = null;
+    try {
+      row = (await publicDb.getOwnerLogoByHash?.(tokenHash)) ?? null;
+    } catch {
+      row = null;
+    }
+
+    if (!row?.logo_storage_key || !row.logo_mime_type) {
+      res.status(404).json({ error: 'Logo individual no configurado.' });
+      return;
+    }
+
+    const buffer = await getStorageProvider().getObject(row.logo_storage_key);
+    res.setHeader('Content-Type', row.logo_mime_type);
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
 publicRouter.get('/:token', async (req, res, next) => {
   try {
     const tokenHash = hashValidTokenOrNull(req.params.token);
@@ -95,17 +125,43 @@ publicRouter.get('/:token', async (req, res, next) => {
       ownerEmergencyRaw = null;
     }
 
+    let ownerLogoRow = null;
+    try {
+      ownerLogoRow = (await publicDb.getOwnerLogoByHash?.(tokenHash)) ?? null;
+    } catch {
+      ownerLogoRow = null;
+    }
+
+    const hasOwnerLogo = Boolean(
+      ownerLogoRow?.logo_storage_key && ownerLogoRow?.logo_mime_type,
+    );
+    const hasGlobalLogo = Boolean(globalRow?.logo_storage_key);
+
     const globalTheme = normalizePublicCardTheme({
       ...((globalRow?.theme as Record<string, unknown> | undefined) ?? DEFAULT_PUBLIC_CARD_THEME),
-      hasCustomLogo: Boolean(globalRow?.logo_storage_key),
+      hasCustomLogo: hasOwnerLogo || hasGlobalLogo,
     });
-    const mergedTheme = mergeThemeWithOwnerOverride(
-      globalTheme,
-      normalizeOwnerCardOverride(ownerOverrideRaw),
-    );
+    const mergedTheme = {
+      ...mergeThemeWithOwnerOverride(
+        globalTheme,
+        normalizeOwnerCardOverride(ownerOverrideRaw),
+      ),
+      hasCustomLogo: hasOwnerLogo || hasGlobalLogo,
+    };
     const updatedAt = globalRow?.updated_at
       ? new Date(String(globalRow.updated_at)).getTime()
       : null;
+    const ownerLogoUpdatedAt = ownerLogoRow?.updated_at
+      ? new Date(String(ownerLogoRow.updated_at)).getTime()
+      : null;
+
+    const resolvedLogoUrl = hasOwnerLogo
+      ? `/api/v1/public/${encodeURIComponent(req.params.token)}/owner-logo${
+          ownerLogoUpdatedAt && !Number.isNaN(ownerLogoUpdatedAt) ? `?v=${ownerLogoUpdatedAt}` : ''
+        }`
+      : hasGlobalLogo
+        ? `/api/v1/public/theme-logo${updatedAt && !Number.isNaN(updatedAt) ? `?v=${updatedAt}` : ''}`
+        : null;
 
     res.setHeader('Cache-Control', 'no-store');
     res.json({
@@ -121,9 +177,7 @@ publicRouter.get('/:token', async (req, res, next) => {
         })),
       },
       theme: mergedTheme,
-      logoUrl: globalRow?.logo_storage_key
-        ? `/api/v1/public/theme-logo${updatedAt && !Number.isNaN(updatedAt) ? `?v=${updatedAt}` : ''}`
-        : null,
+      logoUrl: resolvedLogoUrl,
     });
   } catch (err) {
     next(err);

@@ -125,6 +125,12 @@ export interface PublicCardThemeSqlRow {
   updated_at?: Date | string | null;
 }
 
+export interface PublicOwnerLogoSqlRow {
+  logo_storage_key: string | null;
+  logo_mime_type: string | null;
+  updated_at?: Date | string | null;
+}
+
 export interface PublicQueryExecutor {
   getCardByHash(tokenHash: string): Promise<PublicCardSqlRow | null>;
   getDocumentsByHash(tokenHash: string): Promise<PublicDocumentSqlRow[]>;
@@ -133,6 +139,7 @@ export interface PublicQueryExecutor {
   getCardTheme?(): Promise<PublicCardThemeSqlRow | null>;
   getOwnerThemeOverrideByHash?(tokenHash: string): Promise<unknown | null>;
   getOwnerEmergencyByHash?(tokenHash: string): Promise<unknown | null>;
+  getOwnerLogoByHash?(tokenHash: string): Promise<PublicOwnerLogoSqlRow | null>;
 }
 
 let customPublicExecutorForTests: PublicQueryExecutor | null = null;
@@ -195,6 +202,14 @@ export function getPublicQueryExecutor(): PublicQueryExecutor {
         [tokenHash],
       );
       return result.rows[0]?.emergency ?? null;
+    },
+    async getOwnerLogoByHash(tokenHash: string) {
+      const pool = getPublicPool();
+      const result = await pool.query<PublicOwnerLogoSqlRow>(
+        'SELECT * FROM public_owner_logo_by_hash($1::char(64))',
+        [tokenHash],
+      );
+      return result.rows[0] ?? null;
     },
   };
 }

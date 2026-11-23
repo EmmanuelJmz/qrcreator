@@ -715,4 +715,194 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
       await fs.rm(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it('prioriza foto o logo individual por propietario en ficha pública y sirve /owner-logo', async () => {
+    process.env.STORAGE_DRIVER = 'local';
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cascoqr-publogo-'));
+    process.env.LOCAL_STORAGE_DIR = tmpDir;
+    resetStorageProviderForTests();
+
+    const tokenA = 'Tok3nPr0p1etari0ConLogo_12345678';
+    const tokenB = 'Tok3nPr0p1etari0S1nLogo_12345678';
+    const hashA = hashPublicToken(tokenA);
+    const hashB = hashPublicToken(tokenB);
+
+    const ownerLogoKey = 'branding/owners/owner-a/logo.png';
+    const globalLogoKey = 'branding/global/logo.png';
+    await getStorageProvider().putObject(ownerLogoKey, samplePngBuffer, 'image/png');
+    await getStorageProvider().putObject(globalLogoKey, samplePngBuffer, 'image/png');
+
+    setPublicQueryExecutorForTests({
+      async getCardByHash(hash) {
+        if (hash !== hashA && hash !== hashB) return null;
+        return {
+          owner_id: hash === hashA ? 'owner-a' : 'owner-b',
+          first_name: hash === hashA ? 'Juan' : 'Luis',
+          last_name: 'Pérez',
+          email: null,
+          phone: null,
+          template_storage_key: 'templates/tpl.png',
+          template_mime: 'image/png',
+          template_width: 1000,
+          template_height: 500,
+          qr_x: '65',
+          qr_y: '20',
+          qr_width: '20',
+          qr_height: '40',
+        };
+      },
+      async getDocumentsByHash() {
+        return [];
+      },
+      async getDocumentFile() {
+        return null;
+      },
+      async getCardTheme() {
+        return {
+          theme: { brandName: 'CascoQR' },
+          logo_storage_key: globalLogoKey,
+          logo_mime_type: 'image/png',
+          updated_at: '2026-11-23T10:00:00.000Z',
+        };
+      },
+      async getOwnerLogoByHash(hash) {
+        if (hash === hashA) {
+          return {
+            logo_storage_key: ownerLogoKey,
+            logo_mime_type: 'image/png',
+            updated_at: '2026-11-23T12:00:00.000Z',
+          };
+        }
+        return null;
+      },
+    });
+
+    try {
+      const cardA = await request(app).get(`/api/v1/public/${tokenA}`);
+      expect(cardA.status).toBe(200);
+      expect(cardA.body.theme.hasCustomLogo).toBe(true);
+      expect(cardA.body.logoUrl).toContain(`/api/v1/public/${tokenA}/owner-logo`);
+
+      const imgA = await request(app).get(`/api/v1/public/${tokenA}/owner-logo`);
+      expect(imgA.status).toBe(200);
+      expect(imgA.headers['content-type']).toContain('image/png');
+
+      const cardB = await request(app).get(`/api/v1/public/${tokenB}`);
+      expect(cardB.status).toBe(200);
+      expect(cardB.body.theme.hasCustomLogo).toBe(true);
+      expect(cardB.body.logoUrl).toContain('/api/v1/public/theme-logo');
+
+      const missingImgB = await request(app).get(`/api/v1/public/${tokenB}/owner-logo`);
+      expect(missingImgB.status).toBe(404);
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('sube, consulta, quita y limpia en almacenamiento el logo individual de un propietario', async () => {
+    process.env.ADMIN_USERNAME = 'admin';
+    process.env.ADMIN_PASSWORD = 'SecretPassword123!';
+    process.env.SESSION_SECRET = 'test-session-secret-0123456789abcdef';
+    process.env.STORAGE_DRIVER = 'local';
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cascoqr-ownerlogo-'));
+    process.env.LOCAL_STORAGE_DIR = tmpDir;
+    resetStorageProviderForTests();
+
+    const ownerId = '550e8400-e29b-41d4-a716-446655440777';
+    let storedLogoKey: string | null = null;
+    let storedLogoMime: string | null = null;
+    let ownerExists = true;
+
+    const mockDb = {
+      select: () => ({
+        from: (table: unknown) => ({
+          where: () => {
+            if (table === owners) {
+              return {
+                limit: async () =>
+                  ownerExists
+                    ? [
+                        {
+                          id: ownerId,
+                          logoStorageKey: storedLogoKey,
+                          logoMimeType: storedLogoMime,
+                        },
+                      ]
+                    : [],
+              };
+            }
+            if (table === ownerDocuments) {
+              return Promise.resolve([]);
+            }
+            return Promise.resolve([]);
+          },
+        }),
+      }),
+      update: () => ({
+        set: (values: { logoStorageKey?: string | null; logoMimeType?: string | null }) => ({
+          where: async () => {
+            if ('logoStorageKey' in values) {
+              storedLogoKey = values.logoStorageKey ?? null;
+              storedLogoMime = values.logoMimeType ?? null;
+            }
+          },
+        }),
+      }),
+      delete: (table: unknown) => ({
+        where: async () => {
+          if (table === owners) {
+            ownerExists = false;
+          }
+        },
+      }),
+    };
+    setDbForTests(mockDb as unknown as AppDb);
+
+    try {
+      const loginRes = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ username: 'admin', password: 'SecretPassword123!' });
+      const token = loginRes.body.sessionToken as string;
+
+      const upRes = await request(app)
+        .post(`/api/v1/owners/${ownerId}/card-logo`)
+        .set('Authorization', `Bearer ${token}`)
+        .attach('logo', samplePngBuffer, 'selfie.png');
+      expect(upRes.status).toBe(200);
+      expect(upRes.body.hasCustomLogo).toBe(true);
+      expect(storedLogoKey).toBeTruthy();
+
+      const firstKey = storedLogoKey!;
+      const fetched = await request(app)
+        .get(`/api/v1/owners/${ownerId}/card-logo`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(fetched.status).toBe(200);
+      expect(fetched.headers['content-type']).toContain('image/png');
+
+      // Delete logo endpoint returns to global and removes storage object
+      const delLogo = await request(app)
+        .delete(`/api/v1/owners/${ownerId}/card-logo`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(delLogo.status).toBe(200);
+      expect(delLogo.body.hasCustomLogo).toBe(false);
+      expect(storedLogoKey).toBeNull();
+      await expect(getStorageProvider().getObject(firstKey)).rejects.toThrow();
+
+      // Upload again and verify DELETE /api/v1/owners/:id also cleans up logoStorageKey
+      const upSecond = await request(app)
+        .post(`/api/v1/owners/${ownerId}/card-logo`)
+        .set('Authorization', `Bearer ${token}`)
+        .attach('logo', samplePngBuffer, 'club.png');
+      expect(upSecond.status).toBe(200);
+      const secondKey = storedLogoKey!;
+
+      const delOwner = await request(app)
+        .delete(`/api/v1/owners/${ownerId}`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(delOwner.status).toBe(200);
+      await expect(getStorageProvider().getObject(secondKey)).rejects.toThrow();
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
 });

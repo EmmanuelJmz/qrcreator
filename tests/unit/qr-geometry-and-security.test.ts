@@ -22,6 +22,11 @@ import {
   normalizeEmergencyProfile,
 } from '@/src/lib/emergency-profile';
 import {
+  formatPhoneWithCountry,
+  parsePhoneWithCountry,
+  validateEmergencyPhone,
+} from '@/src/lib/phone-countries';
+import {
   emergencyProfileSchema,
   labelConfigSchema,
   ownerCardThemeOverrideSchema,
@@ -525,5 +530,39 @@ describe('Seguridad criptográfica de tokens y firma binaria de archivos', () =>
         birthDate: '2099-01-01',
       }).success,
     ).toBe(false);
+  });
+
+  it('parsea, formatea y valida teléfonos de emergencia con lada por país y 10 dígitos MX por defecto', () => {
+    expect(parsePhoneWithCountry('')).toMatchObject({
+      country: { iso: 'MX', dialCode: '+52' },
+      localDigits: '',
+    });
+
+    // Legacy 10-digit number defaults to Mexico (+52)
+    expect(parsePhoneWithCountry('7776343425')).toMatchObject({
+      country: { iso: 'MX', dialCode: '+52' },
+      localDigits: '7776343425',
+    });
+
+    // Matches +502 Guatemala before +52 Mexico
+    expect(parsePhoneWithCountry('+502 55551234')).toMatchObject({
+      country: { iso: 'GT', dialCode: '+502' },
+      localDigits: '55551234',
+    });
+
+    expect(formatPhoneWithCountry('MX', '777-634-3425')).toBe('+52 7776343425');
+    expect(formatPhoneWithCountry('US', '555123456789')).toBe('+1 5551234567');
+    expect(formatPhoneWithCountry('MX', '')).toBe('');
+
+    expect(validateEmergencyPhone('')).toBeNull();
+    expect(validateEmergencyPhone('+52 7776343425')).toBeNull();
+    expect(validateEmergencyPhone('7776343425')).toBeNull();
+    expect(validateEmergencyPhone('+1 5551234567')).toBeNull();
+    expect(validateEmergencyPhone('+502 55551234')).toBeNull();
+
+    // Rejects incomplete numbers
+    expect(validateEmergencyPhone('+52 777634')).toContain('10 dígitos');
+    expect(validateEmergencyPhone('777634')).toContain('10 dígitos');
+    expect(validateEmergencyPhone('+502 5555')).toContain('8 dígitos');
   });
 });
