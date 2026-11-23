@@ -1,3 +1,6 @@
+import fs from 'fs/promises';
+import os from 'os';
+import path from 'path';
 import sharp from 'sharp';
 import request from 'supertest';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -7,9 +10,9 @@ import {
   setPublicQueryExecutorForTests,
   type AppDb,
 } from '@/src/server/db';
-import { loginAttempts } from '@/src/server/db/schema';
+import { loginAttempts, ownerDocuments, owners } from '@/src/server/db/schema';
 import { hashPasswordScrypt } from '@/src/server/services/admin-auth.service';
-import { resetStorageProviderForTests } from '@/src/server/services/storage';
+import { getStorageProvider, resetStorageProviderForTests } from '@/src/server/services/storage';
 import { hashPublicToken } from '@/src/server/services/token.service';
 
 function createLoginAttemptsDbMock() {
@@ -633,5 +636,83 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
       insurance: { institution: 'IMSS', nss: '12345678901' },
     });
     expect(savedEmergency).toMatchObject({ bloodType: 'O+' });
+  });
+
+  it('elimina permanentemente al propietario y sus documentos en DELETE /api/v1/owners/:id', async () => {
+    process.env.ADMIN_USERNAME = 'admin';
+    process.env.ADMIN_PASSWORD = 'SecretPassword123!';
+    process.env.SESSION_SECRET = 'test-session-secret-0123456789abcdef';
+    process.env.STORAGE_DRIVER = 'local';
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cascoqr-del-'));
+    process.env.LOCAL_STORAGE_DIR = tmpDir;
+    resetStorageProviderForTests();
+
+    const ownerId = '550e8400-e29b-41d4-a716-446655440123';
+    const docKey1 = `documents/${ownerId}/doc-1.png`;
+    const docKey2 = `documents/${ownerId}/doc-2.jpg`;
+    await getStorageProvider().putObject(docKey1, samplePngBuffer, 'image/png');
+    await getStorageProvider().putObject(docKey2, samplePngBuffer, 'image/jpeg');
+
+    let ownerExists = true;
+    let deletedOwnerCalled = false;
+
+    const mockDb = {
+      select: () => ({
+        from: (table: unknown) => ({
+          where: () => {
+            if (table === owners) {
+              return {
+                limit: async () => (ownerExists ? [{ id: ownerId }] : []),
+              };
+            }
+            if (table === ownerDocuments) {
+              return Promise.resolve([
+                { id: 'doc-1', storageKey: docKey1 },
+                { id: 'doc-2', storageKey: docKey2 },
+              ]);
+            }
+            return Promise.resolve([]);
+          },
+        }),
+      }),
+      delete: (table: unknown) => ({
+        where: async () => {
+          if (table === owners) {
+            deletedOwnerCalled = true;
+            ownerExists = false;
+          }
+        },
+      }),
+    };
+    setDbForTests(mockDb as unknown as AppDb);
+
+    try {
+      const loginRes = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ username: 'admin', password: 'SecretPassword123!' });
+      const token = loginRes.body.sessionToken as string;
+
+      const badUuid = await request(app)
+        .delete('/api/v1/owners/invalido')
+        .set('Authorization', `Bearer ${token}`);
+      expect(badUuid.status).toBe(400);
+
+      const delOk = await request(app)
+        .delete(`/api/v1/owners/${ownerId}`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(delOk.status).toBe(200);
+      expect(delOk.body).toEqual({ ok: true, deletedDocuments: 2 });
+      expect(deletedOwnerCalled).toBe(true);
+
+      await expect(getStorageProvider().getObject(docKey1)).rejects.toThrow();
+      await expect(getStorageProvider().getObject(docKey2)).rejects.toThrow();
+
+      const delMissing = await request(app)
+        .delete(`/api/v1/owners/${ownerId}`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(delMissing.status).toBe(404);
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
   });
 });

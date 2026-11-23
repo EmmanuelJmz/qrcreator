@@ -248,6 +248,10 @@ export const apiClient = {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     }),
+  deleteOwner: (id: string) =>
+    requestJson<{ ok: boolean; deletedDocuments: number }>(`/api/v1/owners/${id}`, {
+      method: 'DELETE',
+    }),
 
   uploadDocuments: (ownerId: string, formData: FormData) =>
     requestJson<{ documents: OwnerDocumentItem[] }>(`/api/v1/owners/${ownerId}/documents`, {

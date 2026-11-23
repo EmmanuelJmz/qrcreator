@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  AlertTriangle,
   Ban,
   Check,
   CheckCircle2,
@@ -14,6 +15,7 @@ import {
   Printer,
   QrCode,
   Search,
+  Trash2,
   Users,
 } from 'lucide-react';
 import { PrintSheetDialog } from '@/src/components/print-sheet-dialog';
@@ -62,6 +64,9 @@ export function OwnersModule({
   const [editingOwnerId, setEditingOwnerId] = useState<string | null>(null);
   const [statusTarget, setStatusTarget] = useState<OwnerSummary | null>(null);
   const [togglingStatus, setTogglingStatus] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<OwnerSummary | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingOwner, setDeletingOwner] = useState(false);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showPrintSheetDialog, setShowPrintSheetDialog] = useState(false);
@@ -117,6 +122,47 @@ export function OwnersModule({
       setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el estado.');
     } finally {
       setTogglingStatus(false);
+    }
+  };
+
+  const handleConfirmDeleteOwner = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!deleteTarget) return;
+    if (deleteConfirmText.trim().toLowerCase() !== 'confirmar') return;
+
+    setDeletingOwner(true);
+    setError(null);
+    setFeedback(null);
+    const target = deleteTarget;
+    try {
+      await apiClient.deleteOwner(target.id);
+      setSelectedIds((prev) => prev.filter((id) => id !== target.id));
+      try {
+        const rawDrafts = window.sessionStorage.getItem('cascoqr_card_theme_drafts_v1');
+        if (rawDrafts) {
+          const parsed = JSON.parse(rawDrafts) as Record<string, unknown>;
+          if (parsed && typeof parsed === 'object' && target.id in parsed) {
+            delete parsed[target.id];
+            window.sessionStorage.setItem('cascoqr_card_theme_drafts_v1', JSON.stringify(parsed));
+          }
+        }
+      } catch {
+        // Ignore sessionStorage errors
+      }
+      setDeleteTarget(null);
+      setDeleteConfirmText('');
+      setFeedback(
+        `Propietario "${target.fullName}" y toda su información (documentos, QR y ficha) fueron eliminados permanentemente.`,
+      );
+      await fetchOwners(searchQuery, statusFilter);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : 'No se pudo eliminar el propietario permanentemente.',
+      );
+    } finally {
+      setDeletingOwner(false);
     }
   };
 
@@ -665,12 +711,26 @@ export function OwnersModule({
                             onClick={() => setStatusTarget(owner)}
                             className={
                               owner.status
-                                ? 'text-red-600 hover:text-red-700 hover:bg-red-50'
+                                ? 'text-amber-700 hover:text-amber-800 hover:bg-amber-50'
                                 : ''
                             }
                           >
                             <Power className="h-3.5 w-3.5" />
                             <span>{owner.status ? 'Desactivar' : 'Reactivar'}</span>
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setDeleteConfirmText('');
+                              setDeleteTarget(owner);
+                            }}
+                            title="Eliminar propietario y toda su información permanentemente"
+                            className="text-red-600 border-red-200 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span>Eliminar</span>
                           </Button>
                         </div>
                       </td>
@@ -743,6 +803,93 @@ export function OwnersModule({
                 </Button>
               </div>
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Permanent Delete Dialog */}
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open && !deletingOwner) {
+            setDeleteTarget(null);
+            setDeleteConfirmText('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          {deleteTarget && (
+            <form onSubmit={(e) => void handleConfirmDeleteOwner(e)} className="space-y-4">
+              <DialogHeader>
+                <div className="flex items-center gap-2.5 text-red-700">
+                  <AlertTriangle className="h-5 w-5 shrink-0" />
+                  <DialogTitle>Eliminar propietario permanentemente</DialogTitle>
+                </div>
+                <DialogDescription>
+                  Estás a punto de eliminar por completo a{' '}
+                  <strong className="text-slate-900">{deleteTarget.fullName}</strong> de la base de datos.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-xs text-red-900 space-y-1.5">
+                <p className="font-semibold">Esta acción borrará de forma irreversible:</p>
+                <ul className="list-disc pl-4 space-y-0.5">
+                  <li>Su registro personal, ficha médica, contactos de emergencia y NSS.</li>
+                  <li>
+                    Su etiqueta QR y enlace público (el código QR impreso dejará de funcionar).
+                  </li>
+                  <li>
+                    Sus documentos adjuntos ({deleteTarget.documentCount}) tanto de la base de datos como del almacenamiento.
+                  </li>
+                </ul>
+              </div>
+
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="delete-owner-confirm-input"
+                  className="block text-xs font-medium text-slate-700"
+                >
+                  Para habilitar la eliminación, escribe{' '}
+                  <span className="font-mono font-bold text-slate-900">Confirmar</span> abajo:
+                </label>
+                <Input
+                  id="delete-owner-confirm-input"
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="Confirmar"
+                  autoComplete="off"
+                  disabled={deletingOwner}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setDeleteTarget(null);
+                    setDeleteConfirmText('');
+                  }}
+                  disabled={deletingOwner}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  variant="destructive"
+                  disabled={
+                    deletingOwner ||
+                    deleteConfirmText.trim().toLowerCase() !== 'confirmar'
+                  }
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>
+                    {deletingOwner ? 'Eliminando...' : 'Eliminar definitivamente'}
+                  </span>
+                </Button>
+              </div>
+            </form>
           )}
         </DialogContent>
       </Dialog>

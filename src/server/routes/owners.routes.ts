@@ -795,6 +795,58 @@ ownersRouter.patch('/:id/status', async (req, res, next) => {
   }
 });
 
+ownersRouter.delete('/:id', async (req, res, next) => {
+  try {
+    const idCheck = uuidParamSchema.safeParse(req.params.id);
+    if (!idCheck.success) {
+      res.status(400).json({ error: 'Identificador inválido.' });
+      return;
+    }
+
+    const db = getDb();
+    const existingRows = await db
+      .select({ id: owners.id })
+      .from(owners)
+      .where(eq(owners.id, idCheck.data))
+      .limit(1);
+
+    if (!existingRows[0]) {
+      res.status(404).json({ error: 'Propietario no encontrado.' });
+      return;
+    }
+
+    const docRows = await db
+      .select({
+        id: ownerDocuments.id,
+        storageKey: ownerDocuments.storageKey,
+      })
+      .from(ownerDocuments)
+      .where(eq(ownerDocuments.ownerId, idCheck.data));
+
+    // Cascade deletes labels and owner_documents rows in PostgreSQL
+    await db.delete(owners).where(eq(owners.id, idCheck.data));
+
+    if (docRows.length > 0) {
+      const storage = getStorageProvider();
+      for (const doc of docRows) {
+        await storage.deleteObject(doc.storageKey).catch((storageErr) => {
+          console.error(
+            `No se pudo eliminar el archivo ${doc.storageKey} del almacenamiento:`,
+            storageErr,
+          );
+        });
+      }
+    }
+
+    res.json({
+      ok: true,
+      deletedDocuments: docRows.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 ownersRouter.get('/:id/documents', async (req, res, next) => {
   try {
     const idCheck = uuidParamSchema.safeParse(req.params.id);
