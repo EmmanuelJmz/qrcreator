@@ -3,7 +3,6 @@ import {
   Activity,
   AlertTriangle,
   Building2,
-  CheckCircle2,
   FileImage,
   GripHorizontal,
   HeartPulse,
@@ -370,21 +369,14 @@ export function PublicCardView({
                   <h1 className={`text-2xl sm:text-3xl font-bold tracking-tight ${palette.title}`}>
                     {card.fullName}
                   </h1>
-                  <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-1 text-sm">
-                    <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600">
-                      <CheckCircle2 className="h-4 w-4 shrink-0" />
-                      <span>Etiqueta activa verificada</span>
-                    </span>
-                    {emg?.cityState && (
-                      <>
-                        <span className={palette.muted} aria-hidden="true">·</span>
-                        <span className={`inline-flex items-center gap-1 ${palette.muted}`}>
-                          <MapPin className="h-3.5 w-3.5 shrink-0" />
-                          <span>{emg.cityState}</span>
-                        </span>
-                      </>
-                    )}
-                  </div>
+                  {emg?.cityState && (
+                    <div className="flex items-center justify-center pt-0.5 text-sm">
+                      <span className={`inline-flex items-center gap-1 ${palette.muted}`}>
+                        <MapPin className="h-3.5 w-3.5 shrink-0" />
+                        <span>{emg.cityState}</span>
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Vitals Summary Row */}
