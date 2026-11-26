@@ -476,12 +476,15 @@ labelsRouter.post('/labels/print-sheet', requireAdmin, async (req, res, next) =>
       format: parsed.data.format,
     };
 
+    const sizeTag = `${parsed.data.exactSizeCm.toFixed(1)}cm`;
+    const isSingle = parsed.data.paperSize === 'single';
+
     if (parsed.data.format === 'pdf') {
       const sheetPdf = await composePrintSheetPdf(items, sheetOptions);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename="hoja-etiquetas-${parsed.data.paperSize}.pdf"`,
+        `attachment; filename="${isSingle ? `sticker-${sizeTag}` : `hoja-etiquetas-${parsed.data.paperSize}`}.pdf"`,
       );
       res.setHeader('Cache-Control', 'private, no-store');
       res.send(sheetPdf);
@@ -493,7 +496,7 @@ labelsRouter.post('/labels/print-sheet', requireAdmin, async (req, res, next) =>
     res.setHeader('Content-Type', 'image/png');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="hoja-etiquetas-${parsed.data.paperSize}.png"`,
+      `attachment; filename="${isSingle ? `sticker-${sizeTag}` : `hoja-etiquetas-${parsed.data.paperSize}`}.png"`,
     );
     res.setHeader('Cache-Control', 'private, no-store');
     res.send(sheetPng);

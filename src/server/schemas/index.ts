@@ -107,7 +107,7 @@ export const printSheetSchema = z.object({
     .array(z.string().uuid('Identificador de propietario inválido.'))
     .min(1, 'Selecciona al menos un propietario para armar la hoja.')
     .max(20, 'Puedes incluir hasta 20 etiquetas por hoja.'),
-  paperSize: z.enum(['letter', 'tabloid']).default('letter'),
+  paperSize: z.enum(['single', 'letter', 'tabloid']).default('letter'),
   columns: z.coerce.number().int().min(1).max(4).default(3),
   cutGuides: z.boolean().default(true),
   gapSize: z.enum(['compact', 'normal']).default('normal'),

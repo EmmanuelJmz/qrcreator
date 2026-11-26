@@ -275,14 +275,14 @@ export function OwnersModule({
             title={
               eligibleOwners.length === 0
                 ? 'Necesitas al menos un propietario activo con etiqueta configurada'
-                : 'Genera una hoja Carta o Tabloide en PNG con varias etiquetas QR'
+                : 'Descarga stickers listos para mini impresora o en hoja Carta / Tabloide'
             }
           >
             <Printer className="h-4 w-4" />
             <span>
               {selectedIds.length > 0
-                ? `Imprimir hoja (${selectedIds.length})`
-                : 'Imprimir varias etiquetas'}
+                ? `Imprimir (${selectedIds.length})`
+                : 'Imprimir etiquetas'}
             </span>
           </Button>
 
@@ -484,7 +484,7 @@ export function OwnersModule({
               onClick={() => setShowPrintSheetDialog(true)}
             >
               <Printer className="h-4 w-4" />
-              <span>Armar hoja para imprimir</span>
+              <span>Imprimir selección</span>
             </Button>
           </div>
         </div>

@@ -373,7 +373,7 @@ export const apiClient = {
 
   generatePrintSheet: async (payload: {
     ownerIds: string[];
-    paperSize: 'letter' | 'tabloid';
+    paperSize: 'single' | 'letter' | 'tabloid';
     columns: number;
     cutGuides: boolean;
     gapSize: 'compact' | 'normal';

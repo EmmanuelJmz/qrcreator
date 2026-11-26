@@ -714,5 +714,78 @@ describe('Seguridad criptográfica de tokens y firma binaria de archivos', () =>
       expect(meta.height).toBe(tpl.height);
     }
   });
+
+  it('genera 1 sticker cuadrado exacto en PNG (300 DPI) y PDF tamaño sticker para mini impresoras', async () => {
+    const squareTpl = await sharp({
+      create: {
+        width: 500,
+        height: 500,
+        channels: 4,
+        background: { r: 15, g: 23, b: 42, alpha: 1 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    const items = [
+      {
+        ownerId: '550e8400-e29b-41d4-a716-446655440091',
+        templateStorageKey: 'templates/circular.png',
+        templateWidth: 500,
+        templateHeight: 500,
+        positionX: 25,
+        positionY: 25,
+        widthPct: 50,
+        publicUrl: 'https://cascoqr.app/ficha/mini-1',
+        qrStyle: 'classic' as const,
+        cachedTemplateBuffer: squareTpl,
+      },
+      {
+        ownerId: '550e8400-e29b-41d4-a716-446655440092',
+        templateStorageKey: 'templates/circular.png',
+        templateWidth: 500,
+        templateHeight: 500,
+        positionX: 25,
+        positionY: 25,
+        widthPct: 50,
+        publicUrl: 'https://cascoqr.app/ficha/mini-2',
+        qrStyle: 'classic' as const,
+        cachedTemplateBuffer: squareTpl,
+      },
+    ];
+
+    const singlePng = await composePrintSheetPng([items[0]], {
+      paperSize: 'single',
+      columns: 1,
+      cutGuides: false,
+      gapSize: 'normal',
+      sizeMode: 'exact',
+      exactSizeCm: 5.0,
+      cutGuideShape: 'circle',
+      format: 'png',
+    });
+    const pngMeta = await sharp(singlePng).metadata();
+    expect(pngMeta.format).toBe('png');
+    expect(pngMeta.width).toBe(591);
+    expect(pngMeta.height).toBe(591);
+    expect(pngMeta.density).toBe(300);
+
+    const singlePdf = await composePrintSheetPdf(items, {
+      paperSize: 'single',
+      columns: 1,
+      cutGuides: true,
+      gapSize: 'normal',
+      sizeMode: 'exact',
+      exactSizeCm: 5.0,
+      cutGuideShape: 'circle',
+      format: 'pdf',
+    });
+    const loadedPdf = await PDFDocument.load(singlePdf);
+    expect(loadedPdf.getPageCount()).toBe(2);
+    const page0 = loadedPdf.getPage(0).getSize();
+    expect(Math.round(page0.width)).toBe(142);
+    expect(Math.round(page0.height)).toBe(142);
+  });
 });
+
 

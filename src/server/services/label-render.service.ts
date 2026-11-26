@@ -10,6 +10,7 @@ import {
   type PrintSheetFormat,
   type PrintSheetGap,
   type PrintSheetSizeMode,
+  type SheetPaperSize,
 } from '../../lib/print-sheet-layout.ts';
 import { renderStyledQrSvg, type QrStyle } from '../../lib/qr-styled.ts';
 import { getStorageProvider } from './storage/index.ts';
@@ -94,7 +95,7 @@ export interface PrintSheetOptions {
   format?: PrintSheetFormat;
 }
 
-const SHEET_DIMENSIONS_150_DPI: Record<PaperSize, { width: number; height: number }> = {
+const SHEET_DIMENSIONS_150_DPI: Record<SheetPaperSize, { width: number; height: number }> = {
   letter: { width: 1275, height: 1650 },
   tabloid: { width: 1650, height: 2550 },
 };
@@ -122,15 +123,64 @@ export async function composePrintSheetPng(
   const sizeMode: PrintSheetSizeMode = options.sizeMode ?? 'auto';
   const cutGuideShape: CutGuideShape = options.cutGuideShape ?? 'rect';
 
+  if (options.paperSize === 'single') {
+    const dpi = 300;
+    const exactCm = Math.min(12, Math.max(2, options.exactSizeCm ?? 5));
+    const stickerPx = cmToPx(exactCm, dpi);
+    const firstItem = items[0];
+    const stickerBuf = await composeFinalLabelPng(firstItem);
+
+    const { data: resizedBuf, info } = await sharp(stickerBuf)
+      .resize(stickerPx, stickerPx, {
+        fit: 'inside',
+        background: { r: 255, g: 255, b: 255, alpha: 0 },
+      })
+      .png()
+      .toBuffer({ resolveWithObject: true });
+
+    const left = Math.floor((stickerPx - info.width) / 2);
+    const top = Math.floor((stickerPx - info.height) / 2);
+    const layers: OverlayOptions[] = [
+      {
+        input: resizedBuf,
+        left,
+        top,
+      },
+    ];
+
+    if (options.cutGuides) {
+      const guideSvg =
+        cutGuideShape === 'circle'
+          ? `<svg xmlns="http://www.w3.org/2000/svg" width="${stickerPx}" height="${stickerPx}" viewBox="0 0 ${stickerPx} ${stickerPx}"><circle cx="${stickerPx / 2}" cy="${stickerPx / 2}" r="${stickerPx / 2 - 2}" fill="none" stroke="#94A3B8" stroke-width="2.5" stroke-dasharray="10 8"/></svg>`
+          : `<svg xmlns="http://www.w3.org/2000/svg" width="${stickerPx}" height="${stickerPx}" viewBox="0 0 ${stickerPx} ${stickerPx}"><rect x="2" y="2" width="${stickerPx - 4}" height="${stickerPx - 4}" fill="none" stroke="#CBD5E1" stroke-width="2.5" stroke-dasharray="10 8"/></svg>`;
+      layers.push({ input: Buffer.from(guideSvg), left: 0, top: 0 });
+    }
+
+    return sharp({
+      create: {
+        width: stickerPx,
+        height: stickerPx,
+        channels: 4,
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      },
+    })
+      .composite(layers)
+      .withMetadata({ density: dpi })
+      .png({ compressionLevel: 6 })
+      .toBuffer();
+  }
+
+  const sheetPaper: SheetPaperSize = options.paperSize;
+
   if (sizeMode === 'exact') {
     const dpi = 300;
-    const paperCm = PAPER_DIMENSIONS_CM[options.paperSize];
+    const paperCm = PAPER_DIMENSIONS_CM[sheetPaper];
     const pageW = cmToPx(paperCm.widthCm, dpi);
     const pageH = cmToPx(paperCm.heightCm, dpi);
     const exactCm = Math.min(12, Math.max(2, options.exactSizeCm ?? 5));
 
     const capacity = computeExactSheetCapacity({
-      paperSize: options.paperSize,
+      paperSize: sheetPaper,
       exactSizeCm: exactCm,
       gapSize: options.gapSize,
       requestedColumns: options.columns,
@@ -220,7 +270,7 @@ export async function composePrintSheetPng(
   }
 
   // Legacy 'auto' column-fit mode
-  const { width: pageW, height: pageH } = SHEET_DIMENSIONS_150_DPI[options.paperSize];
+  const { width: pageW, height: pageH } = SHEET_DIMENSIONS_150_DPI[sheetPaper];
   const margin = 48;
   const gap = options.gapSize === 'compact' ? 14 : 28;
   const cols = Math.max(1, Math.min(4, Math.round(options.columns)));
@@ -316,9 +366,6 @@ export async function composePrintSheetPdf(
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-  const paperCm = PAPER_DIMENSIONS_CM[options.paperSize];
-  const pageW = cmToPt(paperCm.widthCm);
-  const pageH = cmToPt(paperCm.heightCm);
   const sizeMode: PrintSheetSizeMode = options.sizeMode ?? 'auto';
   const cutGuideShape: CutGuideShape = options.cutGuideShape ?? 'rect';
 
@@ -331,10 +378,61 @@ export async function composePrintSheetPdf(
     }),
   );
 
+  if (options.paperSize === 'single') {
+    const exactCm = Math.min(12, Math.max(2, options.exactSizeCm ?? 5));
+    const stickerPt = cmToPt(exactCm);
+    const guideColor = rgb(0.58, 0.64, 0.72);
+
+    for (const { image, width: imgW, height: imgH } of renderedStickers) {
+      const page = pdfDoc.addPage([stickerPt, stickerPt]);
+      const scale = Math.min(stickerPt / imgW, stickerPt / imgH);
+      const drawW = imgW * scale;
+      const drawH = imgH * scale;
+      const drawX = (stickerPt - drawW) / 2;
+      const drawY = (stickerPt - drawH) / 2;
+
+      page.drawImage(image, {
+        x: drawX,
+        y: drawY,
+        width: drawW,
+        height: drawH,
+      });
+
+      if (options.cutGuides) {
+        if (cutGuideShape === 'circle') {
+          page.drawCircle({
+            x: stickerPt / 2,
+            y: stickerPt / 2,
+            size: stickerPt / 2 - 1,
+            borderColor: guideColor,
+            borderWidth: 0.6,
+          });
+        } else {
+          page.drawRectangle({
+            x: 1,
+            y: 1,
+            width: stickerPt - 2,
+            height: stickerPt - 2,
+            borderColor: guideColor,
+            borderWidth: 0.6,
+          });
+        }
+      }
+    }
+
+    const bytes = await pdfDoc.save();
+    return Buffer.from(bytes);
+  }
+
+  const sheetPaper: SheetPaperSize = options.paperSize;
+  const paperCm = PAPER_DIMENSIONS_CM[sheetPaper];
+  const pageW = cmToPt(paperCm.widthCm);
+  const pageH = cmToPt(paperCm.heightCm);
+
   if (sizeMode === 'exact') {
     const exactCm = Math.min(12, Math.max(2, options.exactSizeCm ?? 5));
     const capacity = computeExactSheetCapacity({
-      paperSize: options.paperSize,
+      paperSize: sheetPaper,
       exactSizeCm: exactCm,
       gapSize: options.gapSize,
       requestedColumns: options.columns,

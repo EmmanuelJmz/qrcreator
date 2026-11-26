@@ -1,4 +1,5 @@
-export type PaperSize = 'letter' | 'tabloid';
+export type SheetPaperSize = 'letter' | 'tabloid';
+export type PaperSize = 'single' | SheetPaperSize;
 export type PrintSheetSizeMode = 'auto' | 'exact';
 export type CutGuideShape = 'rect' | 'circle';
 export type PrintSheetFormat = 'png' | 'pdf';
@@ -7,7 +8,7 @@ export type PrintSheetGap = 'compact' | 'normal';
 export const CM_TO_PT = 72 / 2.54;
 
 export const PAPER_DIMENSIONS_CM: Record<
-  PaperSize,
+  SheetPaperSize,
   { widthCm: number; heightCm: number; label: string }
 > = {
   letter: {
@@ -43,7 +44,7 @@ export interface ExactSheetCapacity {
 }
 
 export function computeExactSheetCapacity(params: {
-  paperSize: PaperSize;
+  paperSize: SheetPaperSize;
   exactSizeCm: number;
   gapSize: PrintSheetGap;
   requestedColumns?: number;
