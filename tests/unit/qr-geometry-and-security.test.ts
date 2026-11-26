@@ -1,8 +1,10 @@
+import { PDFDocument } from 'pdf-lib';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import {
   clampSquareLabelGeometry,
   computeSquareHeightPct,
+  defaultSquareLabelGeometry,
   validateLabelGeometry,
 } from '@/src/lib/qr-geometry';
 import { QR_STYLE_IDS, renderStyledQrSvg } from '@/src/lib/qr-styled';
@@ -16,11 +18,16 @@ import {
   normalizePublicCardTheme,
 } from '@/src/lib/public-card-theme';
 import {
+  buildEmergencyWhatsAppUrl,
   calculateAgeFromBirthDate,
+  createEmptyEmergencyContact,
   formatBirthDateEs,
   formatRelationshipLabel,
   normalizeEmergencyProfile,
+  resolveLocationShareRecipient,
+  syncLocationShareWithContacts,
 } from '@/src/lib/emergency-profile';
+import { computeExactSheetCapacity } from '@/src/lib/print-sheet-layout';
 import {
   formatPhoneWithCountry,
   parsePhoneWithCountry,
@@ -35,6 +42,7 @@ import {
   publicCardThemeSchema,
 } from '@/src/server/schemas';
 import {
+  composePrintSheetPdf,
   composePrintSheetPng,
   generateQrPngBuffer,
 } from '@/src/server/services/label-render.service';
@@ -564,5 +572,129 @@ describe('Seguridad criptográfica de tokens y firma binaria de archivos', () =>
     expect(validateEmergencyPhone('+52 777634')).toContain('10 dígitos');
     expect(validateEmergencyPhone('777634')).toContain('10 dígitos');
     expect(validateEmergencyPhone('+502 5555')).toContain('8 dígitos');
+  });
+
+  it('centra el QR automáticamente en plantillas cuadradas/circulares de gota 5 cm', () => {
+    expect(defaultSquareLabelGeometry(1000, 1000)).toEqual({
+      x: 28,
+      y: 28,
+      width: 44,
+      height: 44,
+    });
+  });
+
+  it('aplica reglas del switch de ubicación por WhatsApp (0/1/2 contactos) y genera enlace wa.me', () => {
+    const empty = createEmptyEmergencyContact();
+    const c1 = { name: 'Ana Ruiz', phone: '+52 5511223344', relationship: 'mama' as const, relationshipCustom: '' };
+    const c2 = { name: 'Luis Díaz', phone: '8112345678', relationship: 'hermano' as const, relationshipCustom: '' };
+
+    // 0 contacts -> forced disabled
+    expect(syncLocationShareWithContacts(empty, empty, { enabled: true, targetContact: 'contact1' })).toEqual({
+      enabled: false,
+      targetContact: '',
+    });
+
+    // Only contact 1 -> auto assigns contact1
+    expect(syncLocationShareWithContacts(c1, empty, { enabled: true, targetContact: '' })).toEqual({
+      enabled: true,
+      targetContact: 'contact1',
+    });
+
+    // Only contact 2 -> auto assigns contact2
+    expect(syncLocationShareWithContacts(empty, c2, { enabled: true, targetContact: 'contact1' })).toEqual({
+      enabled: true,
+      targetContact: 'contact2',
+    });
+
+    // Both contacts -> respects chosen slot (contact1 or contact2)
+    expect(syncLocationShareWithContacts(c1, c2, { enabled: true, targetContact: 'contact2' })).toEqual({
+      enabled: true,
+      targetContact: 'contact2',
+    });
+
+    // Build WhatsApp URL with and without coords (prepends 52 to 10-digit legacy number)
+    const urlWithCoords = buildEmergencyWhatsAppUrl({
+      phone: '8112345678',
+      ownerFullName: 'Carlos Mendoza',
+      latitude: 19.432608,
+      longitude: -99.133209,
+    });
+    expect(urlWithCoords).toContain('https://wa.me/528112345678?text=');
+    expect(decodeURIComponent(urlWithCoords!)).toContain('https://maps.google.com/?q=19.432608,-99.133209');
+
+    const normalized = normalizeEmergencyProfile({
+      contact1: c1,
+      contact2: c2,
+      locationShare: { enabled: true, targetContact: 'contact2' },
+    });
+    expect(resolveLocationShareRecipient(normalized)).toMatchObject({
+      slot: 'contact2',
+      contact: { phone: '8112345678' },
+    });
+  });
+
+  it('calcula capacidad exacta en cm (5.0 cm en Carta = 12/hoja) y genera PDF 1:1 multipágina y PNG 300 DPI', async () => {
+    const cap = computeExactSheetCapacity({
+      paperSize: 'letter',
+      exactSizeCm: 5.0,
+      gapSize: 'normal',
+    });
+    expect(cap.maxCols).toBe(3);
+    expect(cap.maxRows).toBe(4);
+    expect(cap.perPage).toBe(12);
+
+    const squareTpl = await sharp({
+      create: {
+        width: 500,
+        height: 500,
+        channels: 4,
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    const items = Array.from({ length: 15 }, (_, idx) => ({
+      ownerId: `550e8400-e29b-41d4-a716-4466554400${String(idx).padStart(2, '0')}`,
+      templateStorageKey: 'templates/circular.png',
+      templateWidth: 500,
+      templateHeight: 500,
+      positionX: 28,
+      positionY: 28,
+      widthPct: 44,
+      publicUrl: `https://cascoqr.app/ficha/demo-${idx}`,
+      qrStyle: 'classic' as const,
+      cachedTemplateBuffer: squareTpl,
+    }));
+
+    const pdfBuf = await composePrintSheetPdf(items, {
+      paperSize: 'letter',
+      columns: 3,
+      cutGuides: true,
+      gapSize: 'normal',
+      sizeMode: 'exact',
+      exactSizeCm: 5.0,
+      cutGuideShape: 'circle',
+      format: 'pdf',
+    });
+    expect(pdfBuf.subarray(0, 5).toString('utf8')).toBe('%PDF-');
+    const loadedPdf = await PDFDocument.load(pdfBuf);
+    expect(loadedPdf.getPageCount()).toBe(2);
+
+    const exactPng = await composePrintSheetPng(items.slice(0, 2), {
+      paperSize: 'letter',
+      columns: 3,
+      cutGuides: true,
+      gapSize: 'normal',
+      sizeMode: 'exact',
+      exactSizeCm: 5.0,
+      cutGuideShape: 'circle',
+      format: 'png',
+    });
+    const meta = await sharp(exactPng).metadata();
+    expect(meta.format).toBe('png');
+    expect(meta.width).toBe(2550);
+    expect(meta.height).toBe(3300);
+    expect(meta.density).toBe(300);
   });
 });

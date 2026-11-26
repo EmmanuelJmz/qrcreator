@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { Check, HeartPulse, PhoneCall, Plus, ShieldAlert, ShieldCheck, X } from 'lucide-react';
+import {
+  Check,
+  HeartPulse,
+  MessageCircle,
+  PhoneCall,
+  Plus,
+  ShieldAlert,
+  ShieldCheck,
+  X,
+} from 'lucide-react';
 import { PhoneCountryInput } from '@/src/components/phone-country-input';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
@@ -11,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/src/components/ui/select';
+import { Switch } from '@/src/components/ui/switch';
 import {
   BLOOD_TYPE_OPTIONS,
   calculateAgeFromBirthDate,
@@ -18,8 +28,10 @@ import {
   COMMON_CONDITIONS,
   INSURANCE_INSTITUTION_PRESETS,
   RELATIONSHIP_OPTIONS,
+  syncLocationShareWithContacts,
   type BloodType,
   type EmergencyContact,
+  type LocationShareContactSlot,
   type OrganDonorStatus,
   type OwnerEmergencyProfile,
   type RelationshipType,
@@ -33,6 +45,160 @@ interface OwnerEmergencyFieldsProps {
 }
 
 const EMPTY_SELECT = '__empty__';
+
+export function EmergencyLocationShareControl({
+  value,
+  onChange,
+  disabled = false,
+  idPrefix = 'loc',
+  onGoToContacts,
+}: {
+  value: OwnerEmergencyProfile;
+  onChange: (next: OwnerEmergencyProfile) => void;
+  disabled?: boolean;
+  idPrefix?: string;
+  onGoToContacts?: () => void;
+}) {
+  const hasC1 = Boolean(value.contact1.phone.trim());
+  const hasC2 = Boolean(value.contact2.phone.trim());
+  const hasAnyContact = hasC1 || hasC2;
+  const hasBothContacts = hasC1 && hasC2;
+
+  const syncedShare = syncLocationShareWithContacts(
+    value.contact1,
+    value.contact2,
+    value.locationShare,
+  );
+  const isEnabled = hasAnyContact && syncedShare.enabled;
+
+  const handleToggle = (checked: boolean) => {
+    if (!hasAnyContact) return;
+    onChange({
+      ...value,
+      locationShare: syncLocationShareWithContacts(value.contact1, value.contact2, {
+        enabled: checked,
+        targetContact: value.locationShare.targetContact,
+      }),
+    });
+  };
+
+  const handlePickSlot = (slot: Exclude<LocationShareContactSlot, ''>) => {
+    onChange({
+      ...value,
+      locationShare: syncLocationShareWithContacts(value.contact1, value.contact2, {
+        enabled: true,
+        targetContact: slot,
+      }),
+    });
+  };
+
+  const singleSlot = hasC1 && !hasC2 ? 'contact1' : !hasC1 && hasC2 ? 'contact2' : null;
+  const singleContact =
+    singleSlot === 'contact1' ? value.contact1 : singleSlot === 'contact2' ? value.contact2 : null;
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-0.5">
+          <Label
+            htmlFor={`${idPrefix}-wa-switch`}
+            className="text-sm font-semibold text-slate-900 flex items-center gap-2 cursor-pointer"
+          >
+            <MessageCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span>Activar ubicación de emergencia por WhatsApp</span>
+          </Label>
+          <p className="text-xs text-slate-500">
+            Muestra un botón en la ficha pública para enviar la ubicación GPS actual por WhatsApp al contacto elegido.
+          </p>
+        </div>
+
+        <Switch
+          id={`${idPrefix}-wa-switch`}
+          checked={isEnabled}
+          disabled={disabled || !hasAnyContact}
+          onCheckedChange={handleToggle}
+          aria-label="Activar ubicación de emergencia por WhatsApp"
+        />
+      </div>
+
+      {!hasAnyContact ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900">
+          <span>
+            Agrega al menos un contacto de emergencia con teléfono para poder activar esta opción.
+          </span>
+          {onGoToContacts && (
+            <button
+              type="button"
+              onClick={onGoToContacts}
+              className="font-semibold text-amber-950 underline underline-offset-2 hover:text-amber-700 cursor-pointer shrink-0"
+            >
+              Configurar contactos →
+            </button>
+          )}
+        </div>
+      ) : isEnabled ? (
+        hasBothContacts ? (
+          <div className="space-y-2 pt-1">
+            <p className="text-xs font-medium text-slate-700">
+              Tienes 2 contactos registrados. Elige a cuál enviar la ubicación:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {(
+                [
+                  { slot: 'contact1', label: 'Contacto 1', contact: value.contact1 },
+                  { slot: 'contact2', label: 'Contacto 2', contact: value.contact2 },
+                ] as const
+              ).map(({ slot, label, contact }) => {
+                const selected = syncedShare.targetContact === slot;
+                return (
+                  <button
+                    key={slot}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => handlePickSlot(slot)}
+                    className={`rounded-lg border px-3 py-2 text-left transition-colors cursor-pointer ${
+                      selected
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-950 ring-1 ring-emerald-600'
+                        : 'border-slate-200 bg-slate-50/70 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold">{label}</span>
+                      <span
+                        className={`h-4 w-4 rounded-full border flex items-center justify-center ${
+                          selected
+                            ? 'border-emerald-600 bg-emerald-600 text-white'
+                            : 'border-slate-300 bg-white'
+                        }`}
+                      >
+                        {selected && <Check className="h-2.5 w-2.5" />}
+                      </span>
+                    </div>
+                    <p className="text-xs font-medium truncate mt-0.5">
+                      {contact.name.trim() || 'Sin nombre'}
+                    </p>
+                    <p className="text-[11px] font-mono tabular-nums text-slate-500 truncate">
+                      {contact.phone}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          singleContact && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-900">
+              Asignado automáticamente al{' '}
+              <strong>{singleSlot === 'contact1' ? 'Contacto 1' : 'Contacto 2'}</strong>:{' '}
+              {singleContact.name.trim() || 'Sin nombre'} ·{' '}
+              <span className="font-mono tabular-nums">{singleContact.phone}</span>
+            </div>
+          )
+        )
+      ) : null}
+    </div>
+  );
+}
 
 function ContactCard({
   title,
@@ -451,16 +617,44 @@ export function OwnerEmergencyFields({
           contact={value.contact1}
           disabled={disabled}
           idPrefix={`${idPrefix}-c1`}
-          onChange={(next) => onChange({ ...value, contact1: next })}
+          onChange={(next) =>
+            onChange({
+              ...value,
+              contact1: next,
+              locationShare: syncLocationShareWithContacts(
+                next,
+                value.contact2,
+                value.locationShare,
+              ),
+            })
+          }
         />
         <ContactCard
           title="Contacto de emergencia 2"
           contact={value.contact2}
           disabled={disabled}
           idPrefix={`${idPrefix}-c2`}
-          onChange={(next) => onChange({ ...value, contact2: next })}
+          onChange={(next) =>
+            onChange({
+              ...value,
+              contact2: next,
+              locationShare: syncLocationShareWithContacts(
+                value.contact1,
+                next,
+                value.locationShare,
+              ),
+            })
+          }
         />
       </div>
+
+      {/* 2b. WhatsApp Emergency Location Switch */}
+      <EmergencyLocationShareControl
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        idPrefix={`${idPrefix}-loc`}
+      />
 
       {/* 3. Allergies & Conditions */}
       <TagMultiSelector

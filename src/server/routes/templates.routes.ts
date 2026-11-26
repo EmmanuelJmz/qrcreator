@@ -4,7 +4,10 @@ import { Router } from 'express';
 import multer from 'multer';
 import { getDb } from '../db/index.ts';
 import { labels, templates } from '../db/schema.ts';
-import { seedStarterTemplatesIfEmpty } from '../db/seed.ts';
+import {
+  installCircularTemplatesPack,
+  seedStarterTemplatesIfEmpty,
+} from '../db/seed.ts';
 import { requireAdmin } from '../middleware/auth.middleware.ts';
 import { templateCreateSchema, uuidParamSchema } from '../schemas/index.ts';
 import {
@@ -55,6 +58,15 @@ templatesRouter.get('/', async (_req, res, next) => {
         createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
       })),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+templatesRouter.post('/circular-pack', async (_req, res, next) => {
+  try {
+    const result = await installCircularTemplatesPack();
+    res.status(201).json(result);
   } catch (err) {
     next(err);
   }

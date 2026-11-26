@@ -13,7 +13,62 @@ interface StarterTemplateDef {
   svg: string;
 }
 
+export const CIRCULAR_DOME_TEMPLATES: StarterTemplateDef[] = [
+  {
+    name: 'Circular 5 cm · SOS QR Naranja (Gota)',
+    originalName: 'circular-5cm-sos-naranja.png',
+    width: 1000,
+    height: 1000,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">
+      <circle cx="500" cy="500" r="494" fill="#0F172A"/>
+      <circle cx="500" cy="500" r="466" fill="none" stroke="#F97316" stroke-width="20"/>
+      <text x="500" y="138" text-anchor="middle" font-family="sans-serif" font-size="56" font-weight="800" fill="#FFFFFF" letter-spacing="2">SOS QR</text>
+      <text x="500" y="186" text-anchor="middle" font-family="sans-serif" font-size="23" font-weight="700" fill="#FDBA74" letter-spacing="0.6">ESCANÉAME EN EMERGENCIAS</text>
+      <rect x="250" y="222" width="500" height="500" rx="28" fill="#FFFFFF"/>
+      <rect x="272" y="244" width="456" height="456" rx="18" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="2" stroke-dasharray="10 8"/>
+      <text x="500" y="786" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#FFFFFF">DATOS MÉDICOS Y CONTACTOS</text>
+      <text x="500" y="830" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="700" fill="#F97316" letter-spacing="1.5">CASCOQR · IDENTIFICACIÓN</text>
+    </svg>`,
+  },
+  {
+    name: 'Circular 5 cm · Emergencia Médica Rojo (Gota)',
+    originalName: 'circular-5cm-emergencia-rojo.png',
+    width: 1000,
+    height: 1000,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">
+      <circle cx="500" cy="500" r="494" fill="#DC2626"/>
+      <circle cx="500" cy="500" r="458" fill="#FFFFFF"/>
+      <rect x="488" y="82" width="24" height="52" rx="6" fill="#DC2626"/>
+      <rect x="474" y="96" width="52" height="24" rx="6" fill="#DC2626"/>
+      <text x="500" y="170" text-anchor="middle" font-family="sans-serif" font-size="34" font-weight="800" fill="#DC2626" letter-spacing="1">SOS · EMERGENCIA</text>
+      <text x="500" y="205" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="700" fill="#0F172A">ESCANÉAME SI TENGO UN ACCIDENTE</text>
+      <rect x="250" y="226" width="500" height="500" rx="26" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="4"/>
+      <rect x="272" y="248" width="456" height="456" rx="18" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="2" stroke-dasharray="10 8"/>
+      <text x="500" y="786" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="800" fill="#0F172A">SANGRE · ALERGIAS · NSS</text>
+      <text x="500" y="828" text-anchor="middle" font-family="sans-serif" font-size="19" font-weight="700" fill="#DC2626">CONTACTOS DIRECTOS AL ESCANEAR</text>
+    </svg>`,
+  },
+  {
+    name: 'Circular 5 cm · Moto Negro/Ámbar (Gota)',
+    originalName: 'circular-5cm-moto-ambar.png',
+    width: 1000,
+    height: 1000,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">
+      <circle cx="500" cy="500" r="494" fill="#111827"/>
+      <circle cx="500" cy="500" r="472" fill="none" stroke="#F59E0B" stroke-width="16"/>
+      <circle cx="500" cy="500" r="446" fill="none" stroke="#374151" stroke-width="4"/>
+      <text x="500" y="146" text-anchor="middle" font-family="sans-serif" font-size="44" font-weight="800" fill="#F59E0B" letter-spacing="1.5">¡ESCANÉAME!</text>
+      <text x="500" y="192" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#F8FAFC" letter-spacing="0.6">EMERGENCIA MOTOCICLISTA</text>
+      <rect x="250" y="222" width="500" height="500" rx="24" fill="#FFFFFF"/>
+      <rect x="272" y="244" width="456" height="456" rx="16" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="2" stroke-dasharray="10 8"/>
+      <text x="500" y="786" text-anchor="middle" font-family="sans-serif" font-size="23" font-weight="700" fill="#F59E0B">FICHA MÉDICA Y CONTACTO SOS</text>
+      <text x="500" y="828" text-anchor="middle" font-family="sans-serif" font-size="19" font-weight="600" fill="#CBD5E1">CASCOQR.APP</text>
+    </svg>`,
+  },
+];
+
 const STARTER_TEMPLATES: StarterTemplateDef[] = [
+  ...CIRCULAR_DOME_TEMPLATES,
   {
     name: 'Etiqueta Identificación Horizontal',
     originalName: 'etiqueta-identificacion-horizontal.png',
@@ -107,6 +162,45 @@ export async function seedStarterTemplatesIfEmpty(): Promise<void> {
   }
 
   seeded = true;
+}
+
+export async function installCircularTemplatesPack(): Promise<{
+  added: number;
+  skipped: number;
+}> {
+  const db = getDb();
+  const storage = getStorageProvider();
+  const existingRows = await db
+    .select({ originalName: templates.originalName })
+    .from(templates);
+  const existingNames = new Set(existingRows.map((r) => r.originalName));
+
+  let added = 0;
+  let skipped = 0;
+
+  for (const tpl of CIRCULAR_DOME_TEMPLATES) {
+    if (existingNames.has(tpl.originalName)) {
+      skipped += 1;
+      continue;
+    }
+    const id = crypto.randomUUID();
+    const storageKey = `templates/${id}.png`;
+    const pngBuffer = await sharp(Buffer.from(tpl.svg)).png().toBuffer();
+
+    await storage.putObject(storageKey, pngBuffer, 'image/png');
+    await db.insert(templates).values({
+      id,
+      name: tpl.name,
+      originalName: tpl.originalName,
+      storageKey,
+      mimeType: 'image/png',
+      width: tpl.width,
+      height: tpl.height,
+    });
+    added += 1;
+  }
+
+  return { added, skipped };
 }
 
 export function resetSeedFlagForTests(): void {

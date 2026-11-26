@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Save, Trash2, Upload } from 'lucide-react';
 import { CircularLogoCropperDialog } from '@/src/components/circular-logo-cropper-dialog';
 import { OwnerCardThemeControl } from '@/src/components/owner-card-theme-control';
-import { OwnerEmergencyFields } from '@/src/components/owner-emergency-fields';
+import {
+  EmergencyLocationShareControl,
+  OwnerEmergencyFields,
+} from '@/src/components/owner-emergency-fields';
 import { QRLabelCanvas } from '@/src/components/qr-label-canvas';
 import { QrCoordinateInputs } from '@/src/components/qr-coordinate-inputs';
 import { QrStyleSelector } from '@/src/components/qr-style-selector';
@@ -449,6 +452,14 @@ export function OwnerCreateView({ onCancel, onCreated }: OwnerCreateViewProps) {
                     onRemoveCustomLogo: handleRemovePendingOwnerLogo,
                   }}
                   disabled={saving}
+                />
+
+                <EmergencyLocationShareControl
+                  value={emergencyProfile}
+                  onChange={setEmergencyProfile}
+                  disabled={saving}
+                  idPrefix="create-general-loc"
+                  onGoToContacts={() => setLeftTab('emergency')}
                 />
               </section>
 

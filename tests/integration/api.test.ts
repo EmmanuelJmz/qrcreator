@@ -10,7 +10,7 @@ import {
   setPublicQueryExecutorForTests,
   type AppDb,
 } from '@/src/server/db';
-import { loginAttempts, ownerDocuments, owners } from '@/src/server/db/schema';
+import { loginAttempts, ownerDocuments, owners, templates } from '@/src/server/db/schema';
 import { hashPasswordScrypt } from '@/src/server/services/admin-auth.service';
 import { getStorageProvider, resetStorageProviderForTests } from '@/src/server/services/storage';
 import { hashPublicToken } from '@/src/server/services/token.service';
@@ -282,6 +282,7 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
           relationship: 'hermano',
           relationshipCustom: '',
         },
+        locationShare: { enabled: false, targetContact: '' },
         allergies: { noneKnown: false, selected: ['Penicilina'], custom: [] },
         conditions: { noneKnown: false, selected: ['Diabetes (azúcar)'], custom: ['Rinitis'] },
         medications: { noneKnown: false, items: ['Metformina 850 mg'] },
@@ -901,6 +902,135 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
         .set('Authorization', `Bearer ${token}`);
       expect(delOwner.status).toBe(200);
       await expect(getStorageProvider().getObject(secondKey)).rejects.toThrow();
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('instala pack de plantillas circulares 5 cm en POST /api/v1/templates/circular-pack y genera PDF 1:1', async () => {
+    process.env.ADMIN_USERNAME = 'admin';
+    process.env.ADMIN_PASSWORD = 'SecretPassword123!';
+    process.env.SESSION_SECRET = 'test-session-secret-0123456789abcdef';
+    process.env.STORAGE_DRIVER = 'local';
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cascoqr-circ-'));
+    process.env.LOCAL_STORAGE_DIR = tmpDir;
+    resetStorageProviderForTests();
+
+    const storedTemplates: Array<{
+      id: string;
+      name: string;
+      originalName: string;
+      storageKey: string;
+      width: number;
+      height: number;
+    }> = [];
+
+    const ownerId = '550e8400-e29b-41d4-a716-446655440888';
+
+    const mockDb = {
+      select: () => ({
+        from: (table: unknown) => {
+          if (table === templates) {
+            return Promise.resolve(
+              storedTemplates.map((t) => ({ originalName: t.originalName })),
+            );
+          }
+          if (table === owners) {
+            return {
+              innerJoin: () => ({
+                innerJoin: () => ({
+                  where: async () => {
+                    const tpl = storedTemplates[0];
+                    if (!tpl) return [];
+                    const encrypted = (
+                      await import('@/src/server/services/token.service')
+                    ).encryptPublicToken('Tok3nC1rcular5cm_1234567890abcd');
+                    return [
+                      {
+                        ownerId,
+                        firstName: 'Sofía',
+                        lastName: 'Vega',
+                        status: true,
+                        encryptedPublicToken: encrypted,
+                        positionX: '28',
+                        positionY: '28',
+                        width: '44',
+                        qrStyle: 'classic',
+                        templateStorageKey: tpl.storageKey,
+                        templateWidth: tpl.width,
+                        templateHeight: tpl.height,
+                      },
+                    ];
+                  },
+                }),
+              }),
+            };
+          }
+          return Promise.resolve([]);
+        },
+      }),
+      insert: (table: unknown) => ({
+        values: async (val: {
+          id: string;
+          name: string;
+          originalName: string;
+          storageKey: string;
+          width: number;
+          height: number;
+        }) => {
+          if (table === templates) {
+            storedTemplates.push(val);
+          }
+        },
+      }),
+    };
+    setDbForTests(mockDb as unknown as AppDb);
+
+    try {
+      const loginRes = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ username: 'admin', password: 'SecretPassword123!' });
+      const token = loginRes.body.sessionToken as string;
+
+      // First install adds all 3 circular 5 cm templates
+      const packRes1 = await request(app)
+        .post('/api/v1/templates/circular-pack')
+        .set('Authorization', `Bearer ${token}`);
+      expect(packRes1.status).toBe(201);
+      expect(packRes1.body).toEqual({ added: 3, skipped: 0 });
+      expect(storedTemplates).toHaveLength(3);
+
+      // Second install is idempotent
+      const packRes2 = await request(app)
+        .post('/api/v1/templates/circular-pack')
+        .set('Authorization', `Bearer ${token}`);
+      expect(packRes2.status).toBe(201);
+      expect(packRes2.body).toEqual({ added: 0, skipped: 3 });
+
+      // Generate exact 5.0 cm PDF print sheet
+      const pdfRes = await request(app)
+        .post('/api/v1/labels/print-sheet')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          ownerIds: [ownerId],
+          paperSize: 'letter',
+          columns: 3,
+          cutGuides: true,
+          gapSize: 'normal',
+          sizeMode: 'exact',
+          exactSizeCm: 5.0,
+          cutGuideShape: 'circle',
+          format: 'pdf',
+        })
+        .buffer(true)
+        .parse((res, cb) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => cb(null, Buffer.concat(chunks)));
+        });
+      expect(pdfRes.status).toBe(200);
+      expect(pdfRes.headers['content-type']).toContain('application/pdf');
+      expect((pdfRes.body as Buffer).subarray(0, 5).toString('utf8')).toBe('%PDF-');
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }

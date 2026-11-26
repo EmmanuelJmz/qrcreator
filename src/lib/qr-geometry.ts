@@ -84,8 +84,16 @@ export function defaultSquareLabelGeometry(
 ): LabelGeometry {
   const safeW = Math.max(1, templateWidth);
   const safeH = Math.max(1, templateHeight);
+
+  if (Math.abs(safeW - safeH) <= 2) {
+    // Square templates (e.g. 5 cm circular dome templates): center QR in the safe inner box
+    const width = 44;
+    const pos = round2((100 - width) / 2);
+    return clampSquareLabelGeometry({ x: pos, y: pos, width }, safeW, safeH);
+  }
+
   // Target ~28% of the smaller visual side, placed neatly on the right-center
-  const targetWidth = safeW >= safeH ? 22 : 34;
+  const targetWidth = safeW > safeH ? 22 : 34;
   const clamped = clampSquareLabelGeometry(
     { x: 68, y: 20, width: targetWidth },
     safeW,

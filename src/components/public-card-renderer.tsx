@@ -3,10 +3,13 @@ import {
   Activity,
   AlertTriangle,
   Building2,
+  ExternalLink,
   FileImage,
   GripHorizontal,
   HeartPulse,
+  Loader2,
   MapPin,
+  MessageCircle,
   Move,
   Phone,
   PhoneCall,
@@ -15,18 +18,22 @@ import {
   ShieldAlert,
   ShieldCheck,
 } from 'lucide-react';
+import { Button } from '@/src/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/src/components/ui/dialog';
 import type { PublicCardData, PublicCardDocument } from '@/src/lib/api-client';
 import {
+  buildEmergencyWhatsAppUrl,
   calculateAgeFromBirthDate,
   formatBirthDateEs,
   formatRelationshipLabel,
   hasContactData,
+  resolveLocationShareRecipient,
 } from '@/src/lib/emergency-profile';
 import {
   computeBannerVisuals,
@@ -154,6 +161,12 @@ export function PublicCardView({
   const [previewDoc, setPreviewDoc] = useState<PublicCardDocument | null>(null);
   const [showLabelImage, setShowLabelImage] = useState(false);
 
+  const [waDialogOpen, setWaDialogOpen] = useState(false);
+  const [waStep, setWaStep] = useState<'confirm' | 'locating' | 'ready'>('confirm');
+  const [waCoords, setWaCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [waUrl, setWaUrl] = useState<string | null>(null);
+  const [waGpsError, setWaGpsError] = useState<string | null>(null);
+
   const headerRef = useRef<HTMLDivElement | null>(null);
   const draggingLogoRef = useRef(false);
   const resizingHeaderRef = useRef<{ startY: number; startHeight: number } | null>(null);
@@ -228,6 +241,64 @@ export function PublicCardView({
 
   const logoFrameClass =
     'rounded-full bg-white shadow-lg border border-slate-200/80 ring-4 ring-white/90';
+
+  const locationRecipient = resolveLocationShareRecipient(card.emergencyProfile);
+
+  const openWaConfirmDialog = () => {
+    if (interactive || !locationRecipient) return;
+    setWaStep('confirm');
+    setWaCoords(null);
+    setWaUrl(null);
+    setWaGpsError(null);
+    setWaDialogOpen(true);
+  };
+
+  const requestLocationAndPrepareWhatsApp = () => {
+    if (!locationRecipient) return;
+    const phone = locationRecipient.contact.phone;
+    const fallbackUrl = buildEmergencyWhatsAppUrl({
+      phone,
+      ownerFullName: card.fullName,
+    });
+
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+      setWaGpsError(
+        'Este navegador no soporta geolocalización. Puedes abrir WhatsApp con el mensaje de emergencia.',
+      );
+      setWaUrl(fallbackUrl);
+      setWaStep('ready');
+      return;
+    }
+
+    setWaStep('locating');
+    setWaGpsError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setWaCoords({ lat, lng });
+        setWaUrl(
+          buildEmergencyWhatsAppUrl({
+            phone,
+            ownerFullName: card.fullName,
+            latitude: lat,
+            longitude: lng,
+          }),
+        );
+        setWaStep('ready');
+      },
+      () => {
+        setWaCoords(null);
+        setWaGpsError(
+          'No se pudo obtener la ubicación GPS (permiso denegado o señal débil). Puedes abrir WhatsApp con el aviso de emergencia sin coordenadas.',
+        );
+        setWaUrl(fallbackUrl);
+        setWaStep('ready');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 },
+    );
+  };
 
   return (
     <div className={`${interactive ? 'min-h-full' : 'min-h-screen'} ${palette.root}`}>
@@ -511,6 +582,29 @@ export function PublicCardView({
                       );
                     })}
                   </div>
+
+                  {locationRecipient && (
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={openWaConfirmDialog}
+                        className="min-h-[48px] w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 flex items-center justify-center gap-2.5 shadow-xs transition-colors cursor-pointer"
+                      >
+                        <MessageCircle className="h-5 w-5 shrink-0" />
+                        <div className="text-left">
+                          <p className="text-sm font-semibold leading-tight">
+                            Enviar ubicación actual por WhatsApp
+                          </p>
+                          <p className="text-[11px] text-emerald-100 leading-tight mt-0.5">
+                            Para: {locationRecipient.contact.name.trim() || 'Contacto de emergencia'} ·{' '}
+                            <span className="font-mono tabular-nums">
+                              {locationRecipient.contact.phone}
+                            </span>
+                          </p>
+                        </div>
+                      </button>
+                    </div>
+                  )}
                 </section>
               )}
 
@@ -780,6 +874,115 @@ export function PublicCardView({
                   />
                 </div>
               </>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
+      {!interactive && locationRecipient && (
+        <Dialog
+          open={waDialogOpen}
+          onOpenChange={(open) => {
+            if (waStep !== 'locating') setWaDialogOpen(open);
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-slate-900">
+                <MessageCircle className="h-5 w-5 text-emerald-600 shrink-0" />
+                <span>Enviar ubicación de emergencia</span>
+              </DialogTitle>
+              <DialogDescription>
+                Usa esta opción únicamente ante una emergencia real. Se preparará un mensaje de WhatsApp para{' '}
+                <strong>{locationRecipient.contact.name.trim() || 'el contacto asignado'}</strong> (
+                <span className="font-mono">{locationRecipient.contact.phone}</span>).
+              </DialogDescription>
+            </DialogHeader>
+
+            {waStep === 'confirm' && (
+              <div className="space-y-4 pt-1">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900">
+                  Al confirmar, el navegador pedirá permiso de ubicación GPS para incluir un enlace directo de Google Maps en el mensaje.
+                </div>
+                <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setWaDialogOpen(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="button"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={requestLocationAndPrepareWhatsApp}
+                  >
+                    <MapPin className="h-4 w-4" />
+                    <span>Obtener ubicación y preparar WhatsApp</span>
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {waStep === 'locating' && (
+              <div className="py-6 flex flex-col items-center justify-center gap-3 text-center">
+                <Loader2 className="h-7 w-7 animate-spin text-emerald-600" />
+                <p className="text-sm font-medium text-slate-800">
+                  Obteniendo coordenadas GPS actuales...
+                </p>
+                <p className="text-xs text-slate-500">
+                  Acepta el permiso de ubicación si tu teléfono lo solicita.
+                </p>
+              </div>
+            )}
+
+            {waStep === 'ready' && (
+              <div className="space-y-4 pt-1">
+                {waCoords ? (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-900 space-y-1">
+                    <p className="font-semibold">Ubicación GPS lista para enviar</p>
+                    <p className="font-mono tabular-nums">
+                      {waCoords.lat.toFixed(6)}, {waCoords.lng.toFixed(6)}
+                    </p>
+                  </div>
+                ) : (
+                  waGpsError && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900">
+                      {waGpsError}
+                    </div>
+                  )
+                )}
+
+                <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setWaDialogOpen(false)}
+                  >
+                    Cerrar
+                  </Button>
+                  {!waCoords && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={requestLocationAndPrepareWhatsApp}
+                    >
+                      Reintentar GPS
+                    </Button>
+                  )}
+                  {waUrl && (
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setWaDialogOpen(false)}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition-colors"
+                    >
+                      <span>{waCoords ? 'Abrir WhatsApp con ubicación' : 'Abrir WhatsApp ahora'}</span>
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  )}
+                </div>
+              </div>
             )}
           </DialogContent>
         </Dialog>

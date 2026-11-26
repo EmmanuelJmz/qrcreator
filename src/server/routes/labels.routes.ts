@@ -9,6 +9,7 @@ import { requireAdmin } from '../middleware/auth.middleware.ts';
 import { labelConfigSchema, printSheetSchema, uuidParamSchema } from '../schemas/index.ts';
 import {
   composeFinalLabelPng,
+  composePrintSheetPdf,
   composePrintSheetPng,
   generateQrSvg,
 } from '../services/label-render.service.ts';
@@ -464,12 +465,30 @@ labelsRouter.post('/labels/print-sheet', requireAdmin, async (req, res, next) =>
       };
     });
 
-    const sheetPng = await composePrintSheetPng(items, {
+    const sheetOptions = {
       paperSize: parsed.data.paperSize,
       columns: parsed.data.columns,
       cutGuides: parsed.data.cutGuides,
       gapSize: parsed.data.gapSize,
-    });
+      sizeMode: parsed.data.sizeMode,
+      exactSizeCm: parsed.data.exactSizeCm,
+      cutGuideShape: parsed.data.cutGuideShape,
+      format: parsed.data.format,
+    };
+
+    if (parsed.data.format === 'pdf') {
+      const sheetPdf = await composePrintSheetPdf(items, sheetOptions);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="hoja-etiquetas-${parsed.data.paperSize}.pdf"`,
+      );
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.send(sheetPdf);
+      return;
+    }
+
+    const sheetPng = await composePrintSheetPng(items, sheetOptions);
 
     res.setHeader('Content-Type', 'image/png');
     res.setHeader(

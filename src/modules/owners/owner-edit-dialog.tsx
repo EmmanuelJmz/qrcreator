@@ -2,7 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Eye, Save, Trash2, Upload } from 'lucide-react';
 import { CircularLogoCropperDialog } from '@/src/components/circular-logo-cropper-dialog';
 import { OwnerCardThemeControl } from '@/src/components/owner-card-theme-control';
-import { OwnerEmergencyFields } from '@/src/components/owner-emergency-fields';
+import {
+  EmergencyLocationShareControl,
+  OwnerEmergencyFields,
+} from '@/src/components/owner-emergency-fields';
 import { ProtectedImage } from '@/src/components/protected-image';
 import { Button } from '@/src/components/ui/button';
 import {
@@ -426,7 +429,7 @@ export function OwnerEditDialog({
                         value={cardThemeOverride}
                         onChange={setCardThemeOverride}
                         logoControl={{
-                          hasCustomLogo,
+                          hasCustomLogo: hasCustomLogo,
                           previewUrl: ownerLogoUrl,
                           uploading: uploadingLogo,
                           onSelectFile: handleSelectOwnerLogoFile,
@@ -441,6 +444,14 @@ export function OwnerEditDialog({
                             : undefined
                         }
                         disabled={saving || uploadingLogo}
+                      />
+
+                      <EmergencyLocationShareControl
+                        value={emergencyProfile}
+                        onChange={setEmergencyProfile}
+                        disabled={saving}
+                        idPrefix="edit-general-loc"
+                        onGoToContacts={() => setActiveTab('emergency')}
                       />
                     </>
                   ) : (

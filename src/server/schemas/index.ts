@@ -108,9 +108,17 @@ export const printSheetSchema = z.object({
     .min(1, 'Selecciona al menos un propietario para armar la hoja.')
     .max(20, 'Puedes incluir hasta 20 etiquetas por hoja.'),
   paperSize: z.enum(['letter', 'tabloid']).default('letter'),
-  columns: z.coerce.number().int().min(2).max(4).default(3),
+  columns: z.coerce.number().int().min(1).max(4).default(3),
   cutGuides: z.boolean().default(true),
   gapSize: z.enum(['compact', 'normal']).default('normal'),
+  sizeMode: z.enum(['auto', 'exact']).default('auto'),
+  exactSizeCm: z.coerce
+    .number()
+    .min(2, 'El tamaño mínimo es 2 cm.')
+    .max(12, 'El tamaño máximo por etiqueta es 12 cm.')
+    .default(5),
+  cutGuideShape: z.enum(['rect', 'circle']).default('rect'),
+  format: z.enum(['png', 'pdf']).default('png'),
 });
 
 const hexColorSchema = z
@@ -205,6 +213,12 @@ export const emergencyProfileSchema = z
     cityState: z.string().trim().max(80).optional().default(''),
     contact1: emergencyContactSchema.optional(),
     contact2: emergencyContactSchema.optional(),
+    locationShare: z
+      .object({
+        enabled: z.boolean().optional().default(false),
+        targetContact: z.enum(['contact1', 'contact2', '']).optional().default(''),
+      })
+      .optional(),
     allergies: emergencyTagGroupSchema.optional(),
     conditions: emergencyTagGroupSchema.optional(),
     medications: z

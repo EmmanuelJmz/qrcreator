@@ -89,6 +89,13 @@ export interface EmergencyInsurance {
   clinic: string;
 }
 
+export type LocationShareContactSlot = 'contact1' | 'contact2' | '';
+
+export interface EmergencyLocationShare {
+  enabled: boolean;
+  targetContact: LocationShareContactSlot;
+}
+
 export interface OwnerEmergencyProfile {
   birthDate: string;
   bloodType: BloodType | '';
@@ -96,6 +103,7 @@ export interface OwnerEmergencyProfile {
   cityState: string;
   contact1: EmergencyContact;
   contact2: EmergencyContact;
+  locationShare: EmergencyLocationShare;
   allergies: EmergencyTagGroup;
   conditions: EmergencyTagGroup;
   medications: EmergencyMedications;
@@ -120,6 +128,7 @@ export function createEmptyEmergencyProfile(): OwnerEmergencyProfile {
     cityState: '',
     contact1: createEmptyEmergencyContact(),
     contact2: createEmptyEmergencyContact(),
+    locationShare: { enabled: false, targetContact: '' },
     allergies: { noneKnown: false, selected: [], custom: [] },
     conditions: { noneKnown: false, selected: [], custom: [] },
     medications: { noneKnown: false, items: [] },
@@ -211,6 +220,31 @@ export function normalizeBirthDate(raw: unknown): string {
   return val;
 }
 
+export function syncLocationShareWithContacts(
+  contact1: EmergencyContact,
+  contact2: EmergencyContact,
+  rawShare?: Partial<EmergencyLocationShare> | null,
+): EmergencyLocationShare {
+  const hasC1 = Boolean(contact1.phone.trim());
+  const hasC2 = Boolean(contact2.phone.trim());
+
+  if (!rawShare?.enabled || (!hasC1 && !hasC2)) {
+    return { enabled: false, targetContact: '' };
+  }
+
+  if (hasC1 && !hasC2) {
+    return { enabled: true, targetContact: 'contact1' };
+  }
+  if (!hasC1 && hasC2) {
+    return { enabled: true, targetContact: 'contact2' };
+  }
+
+  return {
+    enabled: true,
+    targetContact: rawShare.targetContact === 'contact2' ? 'contact2' : 'contact1',
+  };
+}
+
 export function normalizeEmergencyProfile(raw: unknown): OwnerEmergencyProfile | null {
   if (!raw || typeof raw !== 'object') return null;
   const src = raw as Record<string, unknown>;
@@ -224,13 +258,21 @@ export function normalizeEmergencyProfile(raw: unknown): OwnerEmergencyProfile |
   const organDonor: OrganDonorStatus =
     src.organDonor === 'yes' || src.organDonor === 'no' ? src.organDonor : 'unspecified';
 
+  const contact1 = normalizeContact(src.contact1);
+  const contact2 = normalizeContact(src.contact2);
+  const rawShare =
+    src.locationShare && typeof src.locationShare === 'object'
+      ? (src.locationShare as Partial<EmergencyLocationShare>)
+      : null;
+
   const profile: OwnerEmergencyProfile = {
     birthDate: normalizeBirthDate(src.birthDate),
     bloodType,
     organDonor,
     cityState: typeof src.cityState === 'string' ? src.cityState.trim().slice(0, 80) : '',
-    contact1: normalizeContact(src.contact1),
-    contact2: normalizeContact(src.contact2),
+    contact1,
+    contact2,
+    locationShare: syncLocationShareWithContacts(contact1, contact2, rawShare),
     allergies: normalizeTagGroup(src.allergies),
     conditions: normalizeTagGroup(src.conditions),
     medications: normalizeMedications(src.medications),
@@ -336,4 +378,58 @@ export function formatRelationshipLabel(contact: EmergencyContact): string {
     return contact.relationshipCustom.trim() || 'Contacto de emergencia';
   }
   return RELATIONSHIP_LABELS[contact.relationship] || '';
+}
+
+export function resolveLocationShareRecipient(
+  profile?: OwnerEmergencyProfile | null,
+): { slot: 'contact1' | 'contact2'; contact: EmergencyContact } | null {
+  if (!profile?.locationShare?.enabled) return null;
+
+  const hasC1 = Boolean(profile.contact1.phone.trim());
+  const hasC2 = Boolean(profile.contact2.phone.trim());
+  if (!hasC1 && !hasC2) return null;
+
+  if (profile.locationShare.targetContact === 'contact2' && hasC2) {
+    return { slot: 'contact2', contact: profile.contact2 };
+  }
+  if (hasC1) {
+    return { slot: 'contact1', contact: profile.contact1 };
+  }
+  if (hasC2) {
+    return { slot: 'contact2', contact: profile.contact2 };
+  }
+  return null;
+}
+
+export function normalizePhoneForWhatsApp(rawPhone: string): string {
+  const trimmed = rawPhone.trim();
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return '';
+  if (!trimmed.startsWith('+') && digits.length === 10) {
+    return `52${digits}`;
+  }
+  return digits;
+}
+
+export function buildEmergencyWhatsAppUrl(params: {
+  phone: string;
+  ownerFullName: string;
+  latitude?: number | null;
+  longitude?: number | null;
+}): string | null {
+  const waNumber = normalizePhoneForWhatsApp(params.phone);
+  if (!waNumber) return null;
+
+  const ownerName = params.ownerFullName.trim() || 'el propietario del casco';
+  const hasCoords =
+    typeof params.latitude === 'number' &&
+    Number.isFinite(params.latitude) &&
+    typeof params.longitude === 'number' &&
+    Number.isFinite(params.longitude);
+
+  const message = hasCoords
+    ? `EMERGENCIA CASCOQR: Escaneé el casco de ${ownerName}. Esta es la ubicación actual: https://maps.google.com/?q=${params.latitude!.toFixed(6)},${params.longitude!.toFixed(6)}`
+    : `EMERGENCIA CASCOQR: Escaneé el casco de ${ownerName} y necesito comunicarme contigo de inmediato.`;
+
+  return `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`;
 }

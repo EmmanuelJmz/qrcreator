@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Eye, FileImage, Plus, Trash2, Upload } from 'lucide-react';
+import { CircleDot, Eye, FileImage, Loader2, Plus, Trash2, Upload } from 'lucide-react';
 import { ProtectedImage } from '@/src/components/protected-image';
 import { Button } from '@/src/components/ui/button';
 import {
@@ -27,6 +27,7 @@ export function TemplatesModule() {
 
   const [previewTpl, setPreviewTpl] = useState<TemplateItem | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [installingPack, setInstallingPack] = useState(false);
 
   const loadTemplates = useCallback(async () => {
     setLoading(true);
@@ -91,6 +92,33 @@ export function TemplatesModule() {
     }
   };
 
+  const handleInstallCircularPack = async () => {
+    setInstallingPack(true);
+    setError(null);
+    setFeedback(null);
+    try {
+      const res = await apiClient.installCircularTemplatesPack();
+      if (res.added === 0) {
+        setFeedback('Las 3 plantillas circulares para gota de 5 cm ya estaban instaladas.');
+      } else {
+        setFeedback(
+          `Se instalaron ${res.added} ${res.added === 1 ? 'plantilla circular' : 'plantillas circulares'} listas para gota de 5 cm.${
+            res.skipped > 0 ? ` (${res.skipped} ya existente${res.skipped === 1 ? '' : 's'}).` : ''
+          }`,
+        );
+      }
+      await loadTemplates();
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : 'No se pudo instalar el pack de plantillas circulares.',
+      );
+    } finally {
+      setInstallingPack(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -101,10 +129,25 @@ export function TemplatesModule() {
           </p>
         </div>
 
-        <Button onClick={() => setUploadOpen(true)}>
-          <Plus className="h-4 w-4" />
-          <span>Cargar plantilla</span>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void handleInstallCircularPack()}
+            disabled={installingPack}
+          >
+            {installingPack ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CircleDot className="h-4 w-4 text-orange-600" />
+            )}
+            <span>{installingPack ? 'Instalando pack...' : 'Cargar pack circular 5 cm'}</span>
+          </Button>
+          <Button onClick={() => setUploadOpen(true)}>
+            <Plus className="h-4 w-4" />
+            <span>Cargar plantilla</span>
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -140,10 +183,25 @@ export function TemplatesModule() {
           <p className="text-sm text-slate-500 max-w-md mx-auto">
             Carga una imagen en formato JPG o PNG para utilizarla como diseño base en las etiquetas QR.
           </p>
-          <Button onClick={() => setUploadOpen(true)}>
-            <Upload className="h-4 w-4" />
-            <span>Cargar primera plantilla</span>
-          </Button>
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handleInstallCircularPack()}
+              disabled={installingPack}
+            >
+              {installingPack ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CircleDot className="h-4 w-4 text-orange-600" />
+              )}
+              <span>{installingPack ? 'Instalando pack...' : 'Cargar pack circular 5 cm'}</span>
+            </Button>
+            <Button onClick={() => setUploadOpen(true)}>
+              <Upload className="h-4 w-4" />
+              <span>Cargar primera plantilla</span>
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

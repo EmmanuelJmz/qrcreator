@@ -301,6 +301,10 @@ export const apiClient = {
       method: 'POST',
       body: formData,
     }),
+  installCircularTemplatesPack: () =>
+    requestJson<{ added: number; skipped: number }>('/api/v1/templates/circular-pack', {
+      method: 'POST',
+    }),
   deleteTemplate: (id: string) =>
     requestJson<{ ok: boolean }>(`/api/v1/templates/${id}`, { method: 'DELETE' }),
 
@@ -373,6 +377,10 @@ export const apiClient = {
     columns: number;
     cutGuides: boolean;
     gapSize: 'compact' | 'normal';
+    sizeMode?: 'auto' | 'exact';
+    exactSizeCm?: number;
+    cutGuideShape?: 'rect' | 'circle';
+    format?: 'png' | 'pdf';
   }): Promise<Blob> => {
     const res = await fetch('/api/v1/labels/print-sheet', {
       method: 'POST',

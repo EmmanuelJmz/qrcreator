@@ -61,6 +61,10 @@ const PREVIEW_SAMPLE_CARD: PublicCardData = {
       relationship: 'hermano',
       relationshipCustom: '',
     },
+    locationShare: {
+      enabled: true,
+      targetContact: 'contact1',
+    },
     allergies: {
       noneKnown: false,
       selected: ['Penicilina'],
