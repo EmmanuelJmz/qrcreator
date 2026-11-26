@@ -295,7 +295,6 @@ export function hasEmergencyProfileData(
   return Boolean(
     profile.birthDate ||
       profile.bloodType ||
-      profile.organDonor !== 'unspecified' ||
       profile.cityState ||
       hasContactData(profile.contact1) ||
       hasContactData(profile.contact2) ||

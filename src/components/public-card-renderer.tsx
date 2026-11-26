@@ -448,9 +448,7 @@ export function PublicCardView({
                 emg.insurance.policyNumber ||
                 emg.insurance.clinic),
           );
-          const hasVitals = Boolean(
-            emg && (emg.bloodType || emg.birthDate || emg.organDonor !== 'unspecified'),
-          );
+          const hasVitals = Boolean(emg && (emg.bloodType || emg.birthDate));
 
           return (
             <>
@@ -476,19 +474,7 @@ export function PublicCardView({
                 {hasVitals && emg && (
                   <div
                     className={`grid grid-cols-1 ${
-                      [
-                        Boolean(emg.bloodType),
-                        Boolean(emg.birthDate),
-                        emg.organDonor !== 'unspecified',
-                      ].filter(Boolean).length === 2
-                        ? 'sm:grid-cols-2'
-                        : [
-                              Boolean(emg.bloodType),
-                              Boolean(emg.birthDate),
-                              emg.organDonor !== 'unspecified',
-                            ].filter(Boolean).length >= 3
-                          ? 'sm:grid-cols-3'
-                          : ''
+                      emg.bloodType && emg.birthDate ? 'sm:grid-cols-2' : ''
                     } gap-3 pt-4 border-t ${palette.divider}`}
                   >
                     {emg.bloodType && (
@@ -514,15 +500,6 @@ export function PublicCardView({
                             {birthFormatted}
                           </p>
                         )}
-                      </div>
-                    )}
-
-                    {emg.organDonor !== 'unspecified' && (
-                      <div className={`rounded-xl border px-4 py-3 ${palette.subtleBox}`}>
-                        <p className={`text-xs ${palette.muted}`}>Donador de órganos</p>
-                        <p className={`text-base font-semibold ${palette.title}`}>
-                          {emg.organDonor === 'yes' ? 'Sí, es donador' : 'No es donador'}
-                        </p>
                       </div>
                     )}
                   </div>

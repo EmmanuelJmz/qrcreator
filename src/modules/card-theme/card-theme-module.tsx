@@ -47,7 +47,7 @@ const PREVIEW_SAMPLE_CARD: PublicCardData = {
   emergencyProfile: {
     birthDate: '1994-06-15',
     bloodType: 'O+',
-    organDonor: 'yes',
+    organDonor: 'unspecified',
     cityState: 'Guadalajara, Jal.',
     contact1: {
       name: 'Martha Ruiz',

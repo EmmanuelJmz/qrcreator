@@ -32,7 +32,6 @@ import {
   type BloodType,
   type EmergencyContact,
   type LocationShareContactSlot,
-  type OrganDonorStatus,
   type OwnerEmergencyProfile,
   type RelationshipType,
 } from '@/src/lib/emergency-profile';
@@ -574,27 +573,7 @@ export function OwnerEmergencyFields({
             </Select>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">Donador de órganos</Label>
-            <Select
-              value={value.organDonor}
-              disabled={disabled}
-              onValueChange={(val) =>
-                onChange({ ...value, organDonor: val as OrganDonorStatus })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unspecified">No especificado</SelectItem>
-                <SelectItem value="yes">Sí, es donador</SelectItem>
-                <SelectItem value="no">No es donador</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor={`${idPrefix}-city-state`} className="text-xs">
               Ciudad / Estado
             </Label>
