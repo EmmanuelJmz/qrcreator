@@ -1035,4 +1035,90 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
       await fs.rm(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it('usa respaldo directo en owners cuando getOwnerLogoByHash falla y mantiene el logo individual aunque use diseño global', async () => {
+    process.env.DATABASE_URL = 'postgresql://user:secret@localhost:5432/cascoqr';
+    process.env.STORAGE_DRIVER = 'local';
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cascoqr-logofallback-'));
+    process.env.LOCAL_STORAGE_DIR = tmpDir;
+    resetStorageProviderForTests();
+
+    const token = 'FallbackLogoToken1234567890';
+    const ownerLogoKey = 'branding/owners/owner-fallback/logo.png';
+    const globalLogoKey = 'branding/global/logo.png';
+    await getStorageProvider().putObject(ownerLogoKey, samplePngBuffer, 'image/png');
+    await getStorageProvider().putObject(globalLogoKey, samplePngBuffer, 'image/png');
+
+    setDbForTests({
+      select: () => ({
+        from: (table: unknown) => ({
+          where: () => ({
+            limit: async () =>
+              table === owners
+                ? [
+                    {
+                      logo_storage_key: ownerLogoKey,
+                      logo_mime_type: 'image/png',
+                      updated_at: '2026-11-26T10:00:00.000Z',
+                    },
+                  ]
+                : [],
+          }),
+        }),
+      }),
+    } as unknown as AppDb);
+
+    setPublicQueryExecutorForTests({
+      async getCardByHash(hash) {
+        if (hash !== hashPublicToken(token)) return null;
+        return {
+          owner_id: 'owner-fallback',
+          first_name: 'María',
+          last_name: 'López',
+          email: null,
+          phone: null,
+          template_storage_key: 'templates/tpl.png',
+          template_mime: 'image/png',
+          template_width: 1000,
+          template_height: 500,
+          qr_x: '65',
+          qr_y: '20',
+          qr_width: '20',
+          qr_height: '40',
+        };
+      },
+      async getDocumentsByHash() {
+        return [];
+      },
+      async getDocumentFile() {
+        return null;
+      },
+      async getCardTheme() {
+        return {
+          theme: { brandName: 'CascoQR', logoVisible: false },
+          logo_storage_key: globalLogoKey,
+          logo_mime_type: 'image/png',
+          updated_at: '2026-11-26T09:00:00.000Z',
+        };
+      },
+      async getOwnerLogoByHash() {
+        throw new Error('function public_owner_logo_by_hash(character) does not exist');
+      },
+    });
+
+    try {
+      const cardRes = await request(app).get(`/api/v1/public/${token}`);
+      expect(cardRes.status).toBe(200);
+      expect(cardRes.body.theme.logoVisible).toBe(true);
+      expect(cardRes.body.theme.hasCustomLogo).toBe(true);
+      expect(cardRes.body.logoUrl).toContain(`/api/v1/public/${token}/owner-logo`);
+
+      const imgRes = await request(app).get(`/api/v1/public/${token}/owner-logo`);
+      expect(imgRes.status).toBe(200);
+      expect(imgRes.headers['content-type']).toContain('image/png');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
+

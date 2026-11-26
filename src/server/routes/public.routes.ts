@@ -1,3 +1,4 @@
+import { and, eq } from 'drizzle-orm';
 import { Router } from 'express';
 import { normalizeEmergencyProfile } from '../../lib/emergency-profile.ts';
 import {
@@ -7,7 +8,8 @@ import {
   normalizePublicCardTheme,
 } from '../../lib/public-card-theme.ts';
 import { normalizeQrStyle } from '../../lib/qr-styled.ts';
-import { getPublicQueryExecutor } from '../db/index.ts';
+import { getDb, getPublicQueryExecutor, isDatabaseConfigured } from '../db/index.ts';
+import { owners } from '../db/schema.ts';
 import { rateLimitPublic } from '../middleware/auth.middleware.ts';
 import { publicTokenParamSchema, uuidParamSchema } from '../schemas/index.ts';
 import { composeFinalLabelPng } from '../services/label-render.service.ts';
@@ -26,6 +28,20 @@ function hashValidTokenOrNull(rawToken: string): string | null {
   const parsed = publicTokenParamSchema.safeParse(rawToken);
   if (!parsed.success) return null;
   return hashPublicToken(parsed.data);
+}
+
+async function fetchOwnerLogoViaFallback(tokenHash: string) {
+  if (!isDatabaseConfigured()) return null;
+  const rows = await getDb()
+    .select({
+      logo_storage_key: owners.logoStorageKey,
+      logo_mime_type: owners.logoMimeType,
+      updated_at: owners.updatedAt,
+    })
+    .from(owners)
+    .where(and(eq(owners.publicTokenHash, tokenHash), eq(owners.status, true)))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 publicRouter.get('/theme-logo', async (_req, res, next) => {
@@ -65,7 +81,7 @@ publicRouter.get('/:token/owner-logo', async (req, res, next) => {
     try {
       row = (await publicDb.getOwnerLogoByHash?.(tokenHash)) ?? null;
     } catch {
-      row = null;
+      row = await fetchOwnerLogoViaFallback(tokenHash).catch(() => null);
     }
 
     if (!row?.logo_storage_key || !row.logo_mime_type) {
@@ -115,21 +131,41 @@ publicRouter.get('/:token', async (req, res, next) => {
     try {
       ownerOverrideRaw = (await publicDb.getOwnerThemeOverrideByHash?.(tokenHash)) ?? null;
     } catch {
-      ownerOverrideRaw = null;
+      if (isDatabaseConfigured()) {
+        const rows = await getDb()
+          .select({ cardThemeOverride: owners.cardThemeOverride })
+          .from(owners)
+          .where(and(eq(owners.publicTokenHash, tokenHash), eq(owners.status, true)))
+          .limit(1)
+          .catch(() => []);
+        ownerOverrideRaw = rows[0]?.cardThemeOverride ?? null;
+      } else {
+        ownerOverrideRaw = null;
+      }
     }
 
     let ownerEmergencyRaw: unknown = null;
     try {
       ownerEmergencyRaw = (await publicDb.getOwnerEmergencyByHash?.(tokenHash)) ?? null;
     } catch {
-      ownerEmergencyRaw = null;
+      if (isDatabaseConfigured()) {
+        const rows = await getDb()
+          .select({ emergencyProfile: owners.emergencyProfile })
+          .from(owners)
+          .where(and(eq(owners.publicTokenHash, tokenHash), eq(owners.status, true)))
+          .limit(1)
+          .catch(() => []);
+        ownerEmergencyRaw = rows[0]?.emergencyProfile ?? null;
+      } else {
+        ownerEmergencyRaw = null;
+      }
     }
 
     let ownerLogoRow = null;
     try {
       ownerLogoRow = (await publicDb.getOwnerLogoByHash?.(tokenHash)) ?? null;
     } catch {
-      ownerLogoRow = null;
+      ownerLogoRow = await fetchOwnerLogoViaFallback(tokenHash).catch(() => null);
     }
 
     const hasOwnerLogo = Boolean(
@@ -141,12 +177,11 @@ publicRouter.get('/:token', async (req, res, next) => {
       ...((globalRow?.theme as Record<string, unknown> | undefined) ?? DEFAULT_PUBLIC_CARD_THEME),
       hasCustomLogo: hasOwnerLogo || hasGlobalLogo,
     });
+    const normalizedOverride = normalizeOwnerCardOverride(ownerOverrideRaw);
     const mergedTheme = {
-      ...mergeThemeWithOwnerOverride(
-        globalTheme,
-        normalizeOwnerCardOverride(ownerOverrideRaw),
-      ),
+      ...mergeThemeWithOwnerOverride(globalTheme, normalizedOverride),
       hasCustomLogo: hasOwnerLogo || hasGlobalLogo,
+      ...(hasOwnerLogo && normalizedOverride?.logoVisible !== false ? { logoVisible: true } : {}),
     };
     const updatedAt = globalRow?.updated_at
       ? new Date(String(globalRow.updated_at)).getTime()

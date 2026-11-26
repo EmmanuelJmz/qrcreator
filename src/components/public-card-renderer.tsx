@@ -162,10 +162,11 @@ export function PublicCardView({
   const [showLabelImage, setShowLabelImage] = useState(false);
 
   const [waDialogOpen, setWaDialogOpen] = useState(false);
-  const [waStep, setWaStep] = useState<'confirm' | 'locating' | 'ready'>('confirm');
+  const [waStep, setWaStep] = useState<'locating' | 'ready'>('locating');
   const [waCoords, setWaCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [waUrl, setWaUrl] = useState<string | null>(null);
   const [waGpsError, setWaGpsError] = useState<string | null>(null);
+  const waCancelledRef = useRef(false);
 
   const headerRef = useRef<HTMLDivElement | null>(null);
   const draggingLogoRef = useRef(false);
@@ -244,13 +245,15 @@ export function PublicCardView({
 
   const locationRecipient = resolveLocationShareRecipient(card.emergencyProfile);
 
-  const openWaConfirmDialog = () => {
-    if (interactive || !locationRecipient) return;
-    setWaStep('confirm');
-    setWaCoords(null);
-    setWaUrl(null);
-    setWaGpsError(null);
-    setWaDialogOpen(true);
+  const triggerWhatsAppLink = (targetUrl: string) => {
+    const link = document.createElement('a');
+    link.href = targetUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const requestLocationAndPrepareWhatsApp = () => {
@@ -260,6 +263,11 @@ export function PublicCardView({
       phone,
       ownerFullName: card.fullName,
     });
+
+    waCancelledRef.current = false;
+    setWaCoords(null);
+    setWaUrl(fallbackUrl);
+    setWaGpsError(null);
 
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
       setWaGpsError(
@@ -271,24 +279,27 @@ export function PublicCardView({
     }
 
     setWaStep('locating');
-    setWaGpsError(null);
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        if (waCancelledRef.current) return;
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
+        const readyUrl = buildEmergencyWhatsAppUrl({
+          phone,
+          ownerFullName: card.fullName,
+          latitude: lat,
+          longitude: lng,
+        });
         setWaCoords({ lat, lng });
-        setWaUrl(
-          buildEmergencyWhatsAppUrl({
-            phone,
-            ownerFullName: card.fullName,
-            latitude: lat,
-            longitude: lng,
-          }),
-        );
+        setWaUrl(readyUrl);
         setWaStep('ready');
+        if (readyUrl) {
+          triggerWhatsAppLink(readyUrl);
+        }
       },
       () => {
+        if (waCancelledRef.current) return;
         setWaCoords(null);
         setWaGpsError(
           'No se pudo obtener la ubicación GPS (permiso denegado o señal débil). Puedes abrir WhatsApp con el aviso de emergencia sin coordenadas.',
@@ -298,6 +309,17 @@ export function PublicCardView({
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 },
     );
+  };
+
+  const startWhatsAppLocationShare = () => {
+    if (interactive || !locationRecipient) return;
+    setWaDialogOpen(true);
+    requestLocationAndPrepareWhatsApp();
+  };
+
+  const closeWaDialog = () => {
+    waCancelledRef.current = true;
+    setWaDialogOpen(false);
   };
 
   return (
@@ -587,7 +609,7 @@ export function PublicCardView({
                     <div className="pt-1">
                       <button
                         type="button"
-                        onClick={openWaConfirmDialog}
+                        onClick={startWhatsAppLocationShare}
                         className="min-h-[48px] w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 flex items-center justify-center gap-2.5 shadow-xs transition-colors cursor-pointer"
                       >
                         <MessageCircle className="h-5 w-5 shrink-0" />
@@ -882,7 +904,7 @@ export function PublicCardView({
         <Dialog
           open={waDialogOpen}
           onOpenChange={(open) => {
-            if (waStep !== 'locating') setWaDialogOpen(open);
+            if (!open) closeWaDialog();
           }}
         >
           <DialogContent className="max-w-md">
@@ -892,46 +914,41 @@ export function PublicCardView({
                 <span>Enviar ubicación de emergencia</span>
               </DialogTitle>
               <DialogDescription>
-                Usa esta opción únicamente ante una emergencia real. Se preparará un mensaje de WhatsApp para{' '}
+                Mensaje de WhatsApp para{' '}
                 <strong>{locationRecipient.contact.name.trim() || 'el contacto asignado'}</strong> (
                 <span className="font-mono">{locationRecipient.contact.phone}</span>).
               </DialogDescription>
             </DialogHeader>
 
-            {waStep === 'confirm' && (
-              <div className="space-y-4 pt-1">
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900">
-                  Al confirmar, el navegador pedirá permiso de ubicación GPS para incluir un enlace directo de Google Maps en el mensaje.
+            {waStep === 'locating' && (
+              <div className="space-y-4 pt-2">
+                <div className="py-4 flex flex-col items-center justify-center gap-3 text-center">
+                  <Loader2 className="h-7 w-7 animate-spin text-emerald-600" />
+                  <p className="text-sm font-medium text-slate-800">
+                    Obteniendo coordenadas GPS para abrir WhatsApp...
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Acepta el permiso de ubicación si tu teléfono lo solicita. Se abrirá WhatsApp automáticamente.
+                  </p>
                 </div>
+
                 <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setWaDialogOpen(false)}
-                  >
+                  <Button type="button" variant="outline" onClick={closeWaDialog}>
                     Cancelar
                   </Button>
-                  <Button
-                    type="button"
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                    onClick={requestLocationAndPrepareWhatsApp}
-                  >
-                    <MapPin className="h-4 w-4" />
-                    <span>Obtener ubicación y preparar WhatsApp</span>
-                  </Button>
+                  {waUrl && (
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={closeWaDialog}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-medium text-slate-700 transition-colors"
+                    >
+                      <span>Enviar ahora sin GPS</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
                 </div>
-              </div>
-            )}
-
-            {waStep === 'locating' && (
-              <div className="py-6 flex flex-col items-center justify-center gap-3 text-center">
-                <Loader2 className="h-7 w-7 animate-spin text-emerald-600" />
-                <p className="text-sm font-medium text-slate-800">
-                  Obteniendo coordenadas GPS actuales...
-                </p>
-                <p className="text-xs text-slate-500">
-                  Acepta el permiso de ubicación si tu teléfono lo solicita.
-                </p>
               </div>
             )}
 
@@ -939,9 +956,14 @@ export function PublicCardView({
               <div className="space-y-4 pt-1">
                 {waCoords ? (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-900 space-y-1">
-                    <p className="font-semibold">Ubicación GPS lista para enviar</p>
+                    <p className="font-semibold">
+                      Ubicación GPS lista · Abriendo WhatsApp...
+                    </p>
                     <p className="font-mono tabular-nums">
                       {waCoords.lat.toFixed(6)}, {waCoords.lng.toFixed(6)}
+                    </p>
+                    <p className="text-emerald-800/90">
+                      Si WhatsApp no se abrió automáticamente, usa el botón de abajo.
                     </p>
                   </div>
                 ) : (
@@ -953,11 +975,7 @@ export function PublicCardView({
                 )}
 
                 <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setWaDialogOpen(false)}
-                  >
+                  <Button type="button" variant="outline" onClick={closeWaDialog}>
                     Cerrar
                   </Button>
                   {!waCoords && (
@@ -974,7 +992,7 @@ export function PublicCardView({
                       href={waUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      onClick={() => setWaDialogOpen(false)}
+                      onClick={closeWaDialog}
                       className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition-colors"
                     >
                       <span>{waCoords ? 'Abrir WhatsApp con ubicación' : 'Abrir WhatsApp ahora'}</span>

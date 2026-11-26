@@ -104,12 +104,12 @@ export function OwnerCardThemeControl({
             <div className="min-w-0">
               <p className="text-xs font-medium text-slate-800">
                 {logoControl.hasCustomLogo
-                  ? 'Foto o logo circular individual'
+                  ? 'Foto o logo individual cargado'
                   : 'Círculo del encabezado: usa logo global'}
               </p>
               <p className="text-[11px] text-slate-500 truncate">
                 {logoControl.hasCustomLogo
-                  ? 'Solo aplica para este propietario.'
+                  ? 'Reemplazará al logo global al escanear el QR de este propietario.'
                   : 'Puedes subirle su selfie o logo propio sin afectar a otros.'}
               </p>
             </div>
