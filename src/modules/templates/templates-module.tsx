@@ -12,6 +12,7 @@ import {
 import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
 import { apiClient, ApiError, type TemplateItem } from '@/src/lib/api-client';
+import { CIRCULAR_DOME_TEMPLATE_FILES } from '@/src/lib/circular-templates';
 import { formatDateShort } from '@/src/lib/utils';
 
 export function TemplatesModule() {
@@ -92,6 +93,12 @@ export function TemplatesModule() {
     }
   };
 
+  const installedOriginalNames = new Set(templates.map((t) => t.originalName));
+  const missingCircularCount = CIRCULAR_DOME_TEMPLATE_FILES.filter(
+    (file) => !installedOriginalNames.has(file),
+  ).length;
+  const showCircularPackButton = !loading && missingCircularCount > 0;
+
   const handleInstallCircularPack = async () => {
     setInstallingPack(true);
     setError(null);
@@ -99,7 +106,7 @@ export function TemplatesModule() {
     try {
       const res = await apiClient.installCircularTemplatesPack();
       if (res.added === 0) {
-        setFeedback('Las 3 plantillas circulares para gota de 5 cm ya estaban instaladas.');
+        setFeedback('Las 5 plantillas circulares para gota de 5 cm ya estaban instaladas.');
       } else {
         setFeedback(
           `Se instalaron ${res.added} ${res.added === 1 ? 'plantilla circular' : 'plantillas circulares'} listas para gota de 5 cm.${
@@ -130,19 +137,27 @@ export function TemplatesModule() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void handleInstallCircularPack()}
-            disabled={installingPack}
-          >
-            {installingPack ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <CircleDot className="h-4 w-4 text-orange-600" />
-            )}
-            <span>{installingPack ? 'Instalando pack...' : 'Cargar pack circular 5 cm'}</span>
-          </Button>
+          {showCircularPackButton && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handleInstallCircularPack()}
+              disabled={installingPack}
+            >
+              {installingPack ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CircleDot className="h-4 w-4 text-orange-600" />
+              )}
+              <span>
+                {installingPack
+                  ? 'Instalando pack...'
+                  : missingCircularCount < CIRCULAR_DOME_TEMPLATE_FILES.length
+                    ? `Completar pack circular 5 cm (+${missingCircularCount})`
+                    : 'Cargar pack circular 5 cm'}
+              </span>
+            </Button>
+          )}
           <Button onClick={() => setUploadOpen(true)}>
             <Plus className="h-4 w-4" />
             <span>Cargar plantilla</span>

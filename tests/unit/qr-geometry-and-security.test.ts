@@ -60,6 +60,8 @@ import {
 } from '@/src/server/services/token.service';
 
 import { isDatabaseConfigured } from '@/src/server/db';
+import { CIRCULAR_DOME_TEMPLATES } from '@/src/server/db/seed';
+import { convertSvgTextElementsToPaths } from '@/src/server/services/svg-text-paths';
 import {
   DEFAULT_R2_S3_API_URL,
   isStorageConfigured,
@@ -697,4 +699,20 @@ describe('Seguridad criptográfica de tokens y firma binaria de archivos', () =>
     expect(meta.height).toBe(3300);
     expect(meta.density).toBe(300);
   });
+
+  it('convierte todo el texto SVG de plantillas a trazos vectoriales sin depender de fuentes del sistema', async () => {
+    for (const tpl of CIRCULAR_DOME_TEMPLATES) {
+      const vectorized = convertSvgTextElementsToPaths(tpl.svg);
+      expect(vectorized).not.toMatch(/<text\b/i);
+      expect(vectorized).not.toContain('NaN');
+      expect(vectorized).toMatch(/<path d="M[^"]+"/i);
+
+      const png = await sharp(Buffer.from(vectorized)).png().toBuffer();
+      const meta = await sharp(png).metadata();
+      expect(meta.format).toBe('png');
+      expect(meta.width).toBe(tpl.width);
+      expect(meta.height).toBe(tpl.height);
+    }
+  });
 });
+

@@ -148,7 +148,7 @@ templatesRouter.get('/:id/image', async (req, res, next) => {
 
     const buffer = await getStorageProvider().getObject(row.storageKey);
     res.setHeader('Content-Type', row.mimeType);
-    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.setHeader('Cache-Control', 'private, no-cache');
     res.send(buffer);
   } catch (err) {
     next(err);

@@ -4,6 +4,7 @@ import sharp from 'sharp';
 import { getDb, isDatabaseConfigured } from './index.ts';
 import { templates } from './schema.ts';
 import { getStorageProvider, isStorageConfigured } from '../services/storage/index.ts';
+import { convertSvgTextElementsToPaths } from '../services/svg-text-paths.ts';
 
 interface StarterTemplateDef {
   name: string;
@@ -63,6 +64,45 @@ export const CIRCULAR_DOME_TEMPLATES: StarterTemplateDef[] = [
       <rect x="272" y="244" width="456" height="456" rx="16" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="2" stroke-dasharray="10 8"/>
       <text x="500" y="786" text-anchor="middle" font-family="sans-serif" font-size="23" font-weight="700" fill="#F59E0B">FICHA MÉDICA Y CONTACTO SOS</text>
       <text x="500" y="828" text-anchor="middle" font-family="sans-serif" font-size="19" font-weight="600" fill="#CBD5E1">CASCOQR.APP</text>
+    </svg>`,
+  },
+  {
+    name: 'Circular 5 cm · Paramédico Azul (Gota)',
+    originalName: 'circular-5cm-azul-paramedico.png',
+    width: 1000,
+    height: 1000,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">
+      <circle cx="500" cy="500" r="494" fill="#1E3A8A"/>
+      <circle cx="500" cy="500" r="468" fill="#EFF6FF"/>
+      <circle cx="500" cy="500" r="452" fill="none" stroke="#2563EB" stroke-width="10"/>
+      <rect x="360" y="88" width="280" height="48" rx="24" fill="#1D4ED8"/>
+      <text x="500" y="121" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="800" fill="#FFFFFF" letter-spacing="1.2">AUXILIO MÉDICO</text>
+      <text x="500" y="182" text-anchor="middle" font-family="sans-serif" font-size="23" font-weight="800" fill="#0F172A">ESCANEA PARA DATOS VITALES</text>
+      <rect x="250" y="222" width="500" height="500" rx="28" fill="#FFFFFF" stroke="#93C5FD" stroke-width="4"/>
+      <rect x="272" y="244" width="456" height="456" rx="18" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="2" stroke-dasharray="10 8"/>
+      <text x="500" y="782" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="800" fill="#1E3A8A">TIPO DE SANGRE · ALERGIAS</text>
+      <text x="500" y="826" text-anchor="middle" font-family="sans-serif" font-size="19" font-weight="700" fill="#2563EB" letter-spacing="0.8">LLAMAR A CONTACTO EN FICHA</text>
+    </svg>`,
+  },
+  {
+    name: 'Circular 5 cm · Alta Visibilidad Flúor (Gota)',
+    originalName: 'circular-5cm-verde-neon.png',
+    width: 1000,
+    height: 1000,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">
+      <circle cx="500" cy="500" r="494" fill="#090D16"/>
+      <circle cx="500" cy="500" r="468" fill="none" stroke="#84CC16" stroke-width="22"/>
+      <circle cx="500" cy="500" r="440" fill="none" stroke="#365314" stroke-width="4"/>
+      <rect x="492" y="22" width="16" height="32" rx="6" fill="#090D16"/>
+      <rect x="492" y="946" width="16" height="32" rx="6" fill="#090D16"/>
+      <rect x="22" y="492" width="32" height="16" rx="6" fill="#090D16"/>
+      <rect x="946" y="492" width="32" height="16" rx="6" fill="#090D16"/>
+      <text x="500" y="142" text-anchor="middle" font-family="sans-serif" font-size="40" font-weight="800" fill="#BEF264" letter-spacing="1.4">AYUDA RÁPIDA</text>
+      <text x="500" y="188" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="700" fill="#FFFFFF" letter-spacing="0.5">QR DE EMERGENCIA EN CASCO</text>
+      <rect x="250" y="222" width="500" height="500" rx="26" fill="#FFFFFF"/>
+      <rect x="272" y="244" width="456" height="456" rx="18" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="2" stroke-dasharray="10 8"/>
+      <text x="500" y="784" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="800" fill="#BEF264">CONTACTAR A FAMILIAR</text>
+      <text x="500" y="828" text-anchor="middle" font-family="sans-serif" font-size="19" font-weight="600" fill="#E2E8F0">FICHA MÉDICA · CASCOQR</text>
     </svg>`,
   },
 ];
@@ -129,6 +169,33 @@ const STARTER_TEMPLATES: StarterTemplateDef[] = [
 
 let seeded = false;
 
+async function renderTemplateSvgToPng(svg: string): Promise<Buffer> {
+  const vectorSvg = convertSvgTextElementsToPaths(svg);
+  return sharp(Buffer.from(vectorSvg)).png().toBuffer();
+}
+
+async function refreshExistingStarterTemplates(): Promise<void> {
+  const db = getDb();
+  const storage = getStorageProvider();
+  const existingRows = await db
+    .select({
+      originalName: templates.originalName,
+      storageKey: templates.storageKey,
+    })
+    .from(templates);
+
+  const starterByOriginalName = new Map(
+    STARTER_TEMPLATES.map((tpl) => [tpl.originalName, tpl]),
+  );
+
+  for (const row of existingRows) {
+    const def = starterByOriginalName.get(row.originalName);
+    if (!def) continue;
+    const pngBuffer = await renderTemplateSvgToPng(def.svg);
+    await storage.putObject(row.storageKey, pngBuffer, 'image/png');
+  }
+}
+
 export async function seedStarterTemplatesIfEmpty(): Promise<void> {
   if (seeded || !isDatabaseConfigured() || !isStorageConfigured()) return;
 
@@ -138,6 +205,7 @@ export async function seedStarterTemplatesIfEmpty(): Promise<void> {
     .from(templates);
 
   if ((countRes[0]?.total || 0) > 0) {
+    await refreshExistingStarterTemplates().catch(() => undefined);
     seeded = true;
     return;
   }
@@ -147,7 +215,7 @@ export async function seedStarterTemplatesIfEmpty(): Promise<void> {
   for (const tpl of STARTER_TEMPLATES) {
     const id = crypto.randomUUID();
     const storageKey = `templates/${id}.png`;
-    const pngBuffer = await sharp(Buffer.from(tpl.svg)).png().toBuffer();
+    const pngBuffer = await renderTemplateSvgToPng(tpl.svg);
 
     await storage.putObject(storageKey, pngBuffer, 'image/png');
     await db.insert(templates).values({
@@ -171,21 +239,31 @@ export async function installCircularTemplatesPack(): Promise<{
   const db = getDb();
   const storage = getStorageProvider();
   const existingRows = await db
-    .select({ originalName: templates.originalName })
+    .select({
+      id: templates.id,
+      originalName: templates.originalName,
+      storageKey: templates.storageKey,
+    })
     .from(templates);
-  const existingNames = new Set(existingRows.map((r) => r.originalName));
+  const existingByName = new Map(existingRows.map((r) => [r.originalName, r]));
 
   let added = 0;
   let skipped = 0;
 
   for (const tpl of CIRCULAR_DOME_TEMPLATES) {
-    if (existingNames.has(tpl.originalName)) {
+    const existing = existingByName.get(tpl.originalName);
+    const pngBuffer = await renderTemplateSvgToPng(tpl.svg);
+
+    if (existing) {
+      if (existing.storageKey) {
+        await storage.putObject(existing.storageKey, pngBuffer, 'image/png');
+      }
       skipped += 1;
       continue;
     }
+
     const id = crypto.randomUUID();
     const storageKey = `templates/${id}.png`;
-    const pngBuffer = await sharp(Buffer.from(tpl.svg)).png().toBuffer();
 
     await storage.putObject(storageKey, pngBuffer, 'image/png');
     await db.insert(templates).values({

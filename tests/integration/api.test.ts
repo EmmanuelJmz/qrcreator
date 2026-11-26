@@ -932,7 +932,11 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
         from: (table: unknown) => {
           if (table === templates) {
             return Promise.resolve(
-              storedTemplates.map((t) => ({ originalName: t.originalName })),
+              storedTemplates.map((t) => ({
+                id: t.id,
+                originalName: t.originalName,
+                storageKey: t.storageKey,
+              })),
             );
           }
           if (table === owners) {
@@ -992,20 +996,20 @@ describe('API REST CascoQR — Login propio, login_attempts, funciones SECURITY 
         .send({ username: 'admin', password: 'SecretPassword123!' });
       const token = loginRes.body.sessionToken as string;
 
-      // First install adds all 3 circular 5 cm templates
+      // First install adds all 5 circular 5 cm templates
       const packRes1 = await request(app)
         .post('/api/v1/templates/circular-pack')
         .set('Authorization', `Bearer ${token}`);
       expect(packRes1.status).toBe(201);
-      expect(packRes1.body).toEqual({ added: 3, skipped: 0 });
-      expect(storedTemplates).toHaveLength(3);
+      expect(packRes1.body).toEqual({ added: 5, skipped: 0 });
+      expect(storedTemplates).toHaveLength(5);
 
       // Second install is idempotent
       const packRes2 = await request(app)
         .post('/api/v1/templates/circular-pack')
         .set('Authorization', `Bearer ${token}`);
       expect(packRes2.status).toBe(201);
-      expect(packRes2.body).toEqual({ added: 0, skipped: 3 });
+      expect(packRes2.body).toEqual({ added: 0, skipped: 5 });
 
       // Generate exact 5.0 cm PDF print sheet
       const pdfRes = await request(app)

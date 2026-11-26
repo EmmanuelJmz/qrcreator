@@ -13,6 +13,7 @@ import {
 } from '../../lib/print-sheet-layout.ts';
 import { renderStyledQrSvg, type QrStyle } from '../../lib/qr-styled.ts';
 import { getStorageProvider } from './storage/index.ts';
+import { convertSvgTextElementsToPaths } from './svg-text-paths.ts';
 
 export async function generateQrSvg(publicUrl: string, style: QrStyle = 'fluid'): Promise<string> {
   return renderStyledQrSvg(publicUrl, { style });
@@ -106,11 +107,11 @@ function buildCalibrationSvg(pageW: number, pageH: number, dpi: number): string 
   const tick = cmToPx(0.14, dpi);
   const fontSize = Math.round(dpi * 0.085);
 
-  return (
+  return convertSvgTextElementsToPaths(
     `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="#475569" stroke-width="2"/>` +
-    `<line x1="${x1}" y1="${y - tick}" x2="${x1}" y2="${y + tick}" stroke="#475569" stroke-width="2"/>` +
-    `<line x1="${x2}" y1="${y - tick}" x2="${x2}" y2="${y + tick}" stroke="#475569" stroke-width="2"/>` +
-    `<text x="${Math.round(pageW / 2)}" y="${y - tick - 8}" text-anchor="middle" font-family="sans-serif" font-size="${fontSize}" fill="#475569">Escala real 1:1 · Imprimir al 100% · Esta barra mide 5.0 cm</text>`
+      `<line x1="${x1}" y1="${y - tick}" x2="${x1}" y2="${y + tick}" stroke="#475569" stroke-width="2"/>` +
+      `<line x1="${x2}" y1="${y - tick}" x2="${x2}" y2="${y + tick}" stroke="#475569" stroke-width="2"/>` +
+      `<text x="${Math.round(pageW / 2)}" y="${y - tick - 8}" text-anchor="middle" font-family="sans-serif" font-size="${fontSize}" fill="#475569">Escala real 1:1 · Imprimir al 100% · Esta barra mide 5.0 cm</text>`,
   );
 }
 
