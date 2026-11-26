@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import {
   Check,
   HeartPulse,
-  MessageCircle,
   PhoneCall,
   Plus,
   ShieldAlert,
   ShieldCheck,
   X,
 } from 'lucide-react';
+import { WhatsAppIcon } from '@/src/components/whatsapp-icon';
 import { PhoneCountryInput } from '@/src/components/phone-country-input';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
@@ -103,7 +103,7 @@ export function EmergencyLocationShareControl({
             htmlFor={`${idPrefix}-wa-switch`}
             className="text-sm font-semibold text-slate-900 flex items-center gap-2 cursor-pointer"
           >
-            <MessageCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+            <WhatsAppIcon className="h-4 w-4 text-emerald-600 shrink-0" />
             <span>Activar ubicación de emergencia por WhatsApp</span>
           </Label>
           <p className="text-xs text-slate-500">

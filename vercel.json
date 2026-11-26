@@ -13,7 +13,15 @@
       "destination": "/api/index"
     },
     {
-      "source": "/((?!api/).*)",
+      "source": "/landing",
+      "destination": "/landing/index.html"
+    },
+    {
+      "source": "/landing/",
+      "destination": "/landing/index.html"
+    },
+    {
+      "source": "/((?!api/|landing/).*)",
       "destination": "/index.html"
     }
   ]

@@ -9,7 +9,6 @@ import {
   HeartPulse,
   Loader2,
   MapPin,
-  MessageCircle,
   Move,
   Phone,
   PhoneCall,
@@ -18,6 +17,7 @@ import {
   ShieldAlert,
   ShieldCheck,
 } from 'lucide-react';
+import { WhatsAppIcon } from '@/src/components/whatsapp-icon';
 import { Button } from '@/src/components/ui/button';
 import {
   Dialog,
@@ -589,7 +589,7 @@ export function PublicCardView({
                         onClick={startWhatsAppLocationShare}
                         className="min-h-[48px] w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 flex items-center justify-center gap-2.5 shadow-xs transition-colors cursor-pointer"
                       >
-                        <MessageCircle className="h-5 w-5 shrink-0" />
+                        <WhatsAppIcon className="h-5 w-5 shrink-0" />
                         <div className="text-left">
                           <p className="text-sm font-semibold leading-tight">
                             Enviar ubicación actual por WhatsApp
@@ -887,7 +887,7 @@ export function PublicCardView({
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-slate-900">
-                <MessageCircle className="h-5 w-5 text-emerald-600 shrink-0" />
+                <WhatsAppIcon className="h-5 w-5 text-emerald-600 shrink-0" />
                 <span>Enviar ubicación de emergencia</span>
               </DialogTitle>
               <DialogDescription>
@@ -972,6 +972,7 @@ export function PublicCardView({
                       onClick={closeWaDialog}
                       className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition-colors"
                     >
+                      <WhatsAppIcon className="h-4 w-4 shrink-0" />
                       <span>{waCoords ? 'Abrir WhatsApp con ubicación' : 'Abrir WhatsApp ahora'}</span>
                       <ExternalLink className="h-4 w-4" />
                     </a>

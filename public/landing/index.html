@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CascoQR — Identificación Médica de Emergencia para Casco</title>
+    <meta
+      name="description"
+      content="Calcomanía QR impermeable de 5 × 5 cm para tu casco. Quien te auxilie escanea con cualquier cámara y accede al instante a tu tipo de sangre, alergias, contactos y ubicación por WhatsApp."
+    />
+    <meta property="og:title" content="CascoQR — Tu casco habla por ti si tú no puedes" />
+    <meta
+      property="og:description"
+      content="Ficha médica de emergencia al instante desde cualquier celular, sin instalar apps. Solicita tu sticker CascoQR directo por WhatsApp."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&family=Outfit:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#contenido-principal">Saltar al contenido</a>
+
+    <!-- Top Navigation Bar (3-zone contract) -->
+    <header class="site-header" id="inicio">
+      <div class="container header-inner">
+        <a href="#inicio" class="brand-wordmark">CascoQR</a>
+
+        <nav class="main-nav" aria-label="Navegación principal">
+          <a href="#como-funciona">Cómo funciona</a>
+          <a href="#ficha-interactiva">Ficha médica</a>
+          <a href="#resistencia">Resistencia</a>
+          <a href="#preguntas">Preguntas</a>
+        </nav>
+
+        <div class="header-actions">
+          <a
+            href="#pedir"
+            class="btn btn-primary btn-sm"
+            data-wa-quick="Quiero información para pedir mi CascoQR"
+          >
+            <svg class="icon-wa" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M12.05 2a9.93 9.93 0 0 0-8.48 15.11L2 22l5.02-1.32A9.93 9.93 0 1 0 12.05 2Zm0 18.18a8.24 8.24 0 0 1-4.2-1.15l-.3-.18-2.98.78.8-2.9-.2-.31a8.25 8.25 0 1 1 6.88 3.76Z"
+              />
+              <path
+                d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.16-.17.2-.35.22-.64.07-.3-.15-1.26-.46-2.39-1.48-.88-.79-1.48-1.76-1.65-2.06-.17-.3-.02-.46.13-.6.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.21 3.07c.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.69.62.71.23 1.36.2 1.87.12.57-.08 1.76-.72 2.01-1.41.25-.7.25-1.29.17-1.41-.07-.12-.27-.2-.57-.35Z"
+              />
+            </svg>
+            <span>Pedir por WhatsApp</span>
+          </a>
+
+          <button
+            type="button"
+            class="mobile-menu-btn"
+            id="mobileMenuBtn"
+            aria-label="Abrir menú"
+            aria-expanded="false"
+            aria-controls="mobileNav"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <line x1="4" y1="7" x2="20" y2="7" />
+              <line x1="4" y1="12" x2="20" y2="12" />
+              <line x1="4" y1="17" x2="20" y2="17" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <nav class="mobile-nav" id="mobileNav" aria-label="Menú móvil" hidden>
+        <a href="#como-funciona">Cómo funciona</a>
+        <a href="#ficha-interactiva">Ficha médica</a>
+        <a href="#resistencia">Resistencia</a>
+        <a href="#preguntas">Preguntas</a>
+        <a href="#pedir" class="mobile-nav-cta">Pedir por WhatsApp</a>
+      </nav>
+    </header>
+
+    <main id="contenido-principal">
+      <!-- Hero Section -->
+      <section class="hero-section">
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <p class="hero-kicker">
+              Identificación médica en casco · Medida estándar 5 × 5 cm
+            </p>
+            <h1 class="hero-title">
+              Tu casco habla por ti si tú no puedes.
+            </h1>
+            <p class="hero-subtitle">
+              En los primeros minutos tras un accidente cada dato cuenta. Pega tu
+              calcomanía CascoQR y permite que paramédicos o testigos vean al instante
+              tu tipo de sangre, alergias, contactos y envíen tu ubicación GPS por
+              WhatsApp con un toque.
+            </p>
+
+            <div class="hero-cta-row">
+              <a
+                href="#pedir"
+                class="btn btn-primary btn-lg"
+                id="heroWhatsappCta"
+              >
+                <svg class="icon-wa" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path
+                    fill-rule="evenodd"
+                    clip-rule="evenodd"
+                    d="M12.05 2a9.93 9.93 0 0 0-8.48 15.11L2 22l5.02-1.32A9.93 9.93 0 1 0 12.05 2Zm0 18.18a8.24 8.24 0 0 1-4.2-1.15l-.3-.18-2.98.78.8-2.9-.2-.31a8.25 8.25 0 1 1 6.88 3.76Z"
+                  />
+                  <path
+                    d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.16-.17.2-.35.22-.64.07-.3-.15-1.26-.46-2.39-1.48-.88-.79-1.48-1.76-1.65-2.06-.17-.3-.02-.46.13-.6.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.21 3.07c.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.69.62.71.23 1.36.2 1.87.12.57-.08 1.76-.72 2.01-1.41.25-.7.25-1.29.17-1.41-.07-.12-.27-.2-.57-.35Z"
+                  />
+                </svg>
+                <span>Solicitar mi CascoQR</span>
+              </a>
+
+              <a href="#ficha-interactiva" class="btn-ghost-link">
+                Probar ficha en vivo
+                <span aria-hidden="true">→</span>
+              </a>
+            </div>
+
+            <p class="hero-meta-line">
+              <span>Sin mensualidades</span>
+              <span aria-hidden="true">·</span>
+              <span>Escaneo sin descargar app</span>
+              <span aria-hidden="true">·</span>
+              <span>Listo para pegar en cualquier casco</span>
+            </p>
+          </div>
+
+          <div class="hero-media">
+            <div class="media-frame media-hero">
+              <img
+                src="./assets/hero-helmet.jpg"
+                alt="Casco de motocicleta negro mate con calcomanía circular CascoQR naranja adherida en la parte posterior"
+                referrerpolicy="no-referrer"
+                onerror="this.parentElement.classList.add('is-fallback')"
+              />
+              <div class="media-fallback" aria-hidden="true">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <path d="M14 14h3v3h-3zM18 18h3v3h-3zM14 20h3" />
+                </svg>
+                <span>CascoQR · Etiqueta Circular 5 × 5 cm</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quantitative Strip -->
+        <div class="container">
+          <div class="metrics-strip">
+            <div class="metric-item">
+              <p class="metric-value">5 × 5 cm</p>
+              <p class="metric-label">Formato circular diseñado para la curvatura del casco</p>
+            </div>
+            <div class="metric-item">
+              <p class="metric-value">&lt; 3 seg</p>
+              <p class="metric-label">Apertura directa desde cámara iPhone o Android</p>
+            </div>
+            <div class="metric-item">
+              <p class="metric-value">1 toque</p>
+              <p class="metric-label">Envío de ubicación GPS por WhatsApp a tu familiar</p>
+            </div>
+            <div class="metric-item">
+              <p class="metric-value">0 apps</p>
+              <p class="metric-label">Quien te auxilia no instala nada ni crea cuenta</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Mechanism + Live Interactive Demo -->
+      <section class="demo-section" id="como-funciona">
+        <div class="container demo-grid">
+          <div class="steps-column">
+            <div class="section-intro">
+              <p class="section-eyebrow">Cómo funciona en emergencia</p>
+              <h2 class="section-title">
+                De la calle a tus contactos en tres pasos simples
+              </h2>
+              <p class="section-lead">
+                Cuando un motociclista queda inconsciente o aturdido, perder diez
+                minutos buscando identificaciones o desbloqueando un teléfono
+                bloqueado marca la diferencia.
+              </p>
+            </div>
+
+            <ol class="editorial-steps">
+              <li>
+                <span class="step-num">01.</span>
+                <div>
+                  <h3>Pegas tu etiqueta en el casco</h3>
+                  <p>
+                    Se adhiere limpio en la parte trasera o lateral del casco. Su
+                    contraste naranja y código QR de alta tolerancia facilita la
+                    lectura incluso con poca luz.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span class="step-num">02.</span>
+                <div>
+                  <h3>Cargamos tu ficha médica completa</h3>
+                  <p>
+                    Tipo de sangre, alergias críticas, padecimientos, póliza o
+                    IMSS/ISSSTE y hasta dos contactos de emergencia. Si algún
+                    día cambias de número, actualizamos el mismo QR.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span class="step-num">03.</span>
+                <div>
+                  <h3>Escaneo inmediato y aviso por WhatsApp</h3>
+                  <p>
+                    Cualquier cámara abre tu ficha al instante. Con un solo
+                    toque pueden llamar a tu contacto o mandarle tu punto exacto
+                    en Google Maps directo por WhatsApp.
+                  </p>
+                </div>
+              </li>
+            </ol>
+          </div>
+
+          <!-- Interactive Live Card Preview -->
+          <div class="phone-column" id="ficha-interactiva">
+            <div class="demo-toolbar">
+              <span class="demo-toolbar-label">Vista previa interactiva</span>
+              <div class="segmented-control" role="tablist" aria-label="Perfiles de ejemplo">
+                <button
+                  type="button"
+                  class="seg-btn is-active"
+                  role="tab"
+                  aria-selected="true"
+                  data-profile="urbano"
+                >
+                  Perfil urbano
+                </button>
+                <button
+                  type="button"
+                  class="seg-btn"
+                  role="tab"
+                  aria-selected="false"
+                  data-profile="ruta"
+                >
+                  Perfil ruta
+                </button>
+              </div>
+            </div>
+
+            <div class="phone-shell">
+              <div class="phone-notch" aria-hidden="true"></div>
+              <div class="phone-screen">
+                <div class="card-top-banner">
+                  <div class="card-avatar" id="demoAvatar">CM</div>
+                </div>
+
+                <div class="card-body">
+                  <p class="card-role">Propietario del casco</p>
+                  <h3 class="card-name" id="demoName">Carlos Mendoza</h3>
+                  <p class="card-city" id="demoCity">Guadalajara, Jal.</p>
+
+                  <div class="card-vitals-grid">
+                    <div class="vital-box vital-blood">
+                      <span class="vital-label">Tipo de sangre</span>
+                      <strong class="vital-value" id="demoBlood">O+</strong>
+                    </div>
+                    <div class="vital-box">
+                      <span class="vital-label">Edad</span>
+                      <strong class="vital-value" id="demoAge">31 años</strong>
+                    </div>
+                  </div>
+
+                  <div class="card-alert-box">
+                    <span class="alert-title">Alergias y alertas</span>
+                    <p id="demoAlerts">Penicilina · Sin otras alergias conocidas</p>
+                  </div>
+
+                  <div class="card-insurance-row">
+                    <span>Cobertura médica</span>
+                    <strong id="demoInsurance">IMSS · UMF 51</strong>
+                  </div>
+
+                  <div class="card-contact-box">
+                    <div class="contact-meta">
+                      <span id="demoRel">Contacto 1 · Mamá</span>
+                      <strong id="demoContactName">Martha Ruiz</strong>
+                    </div>
+                    <button type="button" class="call-pill-btn" id="demoCallBtn">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
+                      </svg>
+                      <span id="demoPhone">+52 33 1987 6543</span>
+                    </button>
+                  </div>
+
+                  <button type="button" class="demo-wa-action" id="demoSimWaBtn">
+                    <svg class="icon-wa" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path
+                        fill-rule="evenodd"
+                        clip-rule="evenodd"
+                        d="M12.05 2a9.93 9.93 0 0 0-8.48 15.11L2 22l5.02-1.32A9.93 9.93 0 1 0 12.05 2Zm0 18.18a8.24 8.24 0 0 1-4.2-1.15l-.3-.18-2.98.78.8-2.9-.2-.31a8.25 8.25 0 1 1 6.88 3.76Z"
+                      />
+                      <path
+                        d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.16-.17.2-.35.22-.64.07-.3-.15-1.26-.46-2.39-1.48-.88-.79-1.48-1.76-1.65-2.06-.17-.3-.02-.46.13-.6.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.21 3.07c.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.69.62.71.23 1.36.2 1.87.12.57-.08 1.76-.72 2.01-1.41.25-.7.25-1.29.17-1.41-.07-.12-.27-.2-.57-.35Z"
+                      />
+                    </svg>
+                    <span>Enviar ubicación actual por WhatsApp</span>
+                  </button>
+
+                  <div class="demo-toast" id="demoToast" hidden></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bento Capabilities & Durability -->
+      <section class="bento-section" id="resistencia">
+        <div class="container">
+          <div class="section-intro section-intro-wide">
+            <p class="section-eyebrow">Fabricado para el camino</p>
+            <h2 class="section-title">
+              Resistente al agua, sol y fricción diaria
+            </h2>
+          </div>
+
+          <div class="bento-grid">
+            <article class="bento-card bento-span-2">
+              <div class="media-frame bento-media">
+                <img
+                  src="./assets/sticker-waterproof.jpg"
+                  alt="Primer plano de etiqueta circular CascoQR con recubrimiento brillante y gotas de agua sobre casco de fibra"
+                  referrerpolicy="no-referrer"
+                  loading="lazy"
+                  onerror="this.parentElement.classList.add('is-fallback')"
+                />
+                <div class="media-fallback" aria-hidden="true">
+                  <span>Recubrimiento impermeable 5 × 5 cm</span>
+                </div>
+              </div>
+              <div class="bento-content">
+                <p class="bento-meta">Adhesivo de alta adherencia · Lluvia y sol UV</p>
+                <h3>Se adapta a la curva del casco sin despegarse</h3>
+                <p>
+                  Impresión nítida en contraste alto pensada para cascos mate,
+                  brillantes o fibra. Soporta lluvia intensa, lavado frecuente y
+                  exposición solar sin perder legibilidad en el escáner.
+                </p>
+              </div>
+            </article>
+
+            <article class="bento-card">
+              <div class="media-frame bento-media-sm">
+                <img
+                  src="./assets/phone-scan.jpg"
+                  alt="Persona escaneando con teléfono móvil el código QR en la nuca del casco de un motociclista en carretera"
+                  referrerpolicy="no-referrer"
+                  loading="lazy"
+                  onerror="this.parentElement.classList.add('is-fallback')"
+                />
+                <div class="media-fallback" aria-hidden="true">
+                  <span>Lectura directa sin apps</span>
+                </div>
+              </div>
+              <div class="bento-content">
+                <p class="bento-meta">iOS y Android · Enlace seguro</p>
+                <h3>Funciona aunque tu teléfono esté bloqueado o dañado</h3>
+                <p>
+                  La ficha vive en un enlace encriptado independiente de tu
+                  celular. Quien te ayude usa su propia cámara para consultar tus
+                  datos al instante.
+                </p>
+              </div>
+            </article>
+
+            <article class="bento-card bento-card-text">
+              <div class="bento-content">
+                <p class="bento-meta">Actualización sin reimprimir</p>
+                <h3>¿Cambiaste de moto, teléfono o póliza?</h3>
+                <p>
+                  Tu código QR impreso conserva siempre el mismo enlace. Si
+                  actualizas tu contacto de emergencia, alergia o seguro médico,
+                  se refleja al momento sin cambiar la calcomanía de tu casco.
+                </p>
+              </div>
+            </article>
+
+            <article class="bento-card bento-card-text bento-span-2">
+              <div class="bento-content bento-split-text">
+                <div>
+                  <p class="bento-meta">Personalización · Individual o Moto Clubs</p>
+                  <h3>Disponible en diseños de alta visibilidad o con el emblema de tu club</h3>
+                  <p>
+                    Elige entre nuestros diseños circulares SOS de alto contraste o
+                    solicita un tiraje personalizado para rodadas, grupos y
+                    flotillas de reparto.
+                  </p>
+                </div>
+                <a href="#pedir" class="btn btn-outline-light">
+                  Cotizar para mi club
+                </a>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- Direct WhatsApp Order Configurator -->
+      <section class="order-section" id="pedir">
+        <div class="container order-grid">
+          <div class="order-copy">
+            <p class="section-eyebrow">Pedido directo sin formularios largos</p>
+            <h2 class="section-title">
+              Pide tu CascoQR directo por WhatsApp
+            </h2>
+            <p class="section-lead">
+              Configura qué paquete necesitas y te conectamos directo con el
+              administrador en WhatsApp con tu mensaje ya armado para coordinar
+              tus datos, diseño y envío.
+            </p>
+
+            <ul class="order-highlights">
+              <li>Activamos tu ficha digital antes de enviarte o entregarte el sticker</li>
+              <li>Puedes incluir documento médico o tarjeta de seguro si lo deseas</li>
+              <li>Atención personal para piezas individuales, parejas o moto clubs</li>
+            </ul>
+          </div>
+
+          <form class="order-card" id="waOrderForm" novalidate>
+            <fieldset class="pack-fieldset">
+              <legend>1. Elige tu paquete</legend>
+              <div class="pack-options">
+                <label class="pack-option">
+                  <input type="radio" name="pack" value="1 CascoQR Personal" checked />
+                  <span class="pack-box">
+                    <strong>1 Sticker Personal</strong>
+                    <span>Para tu casco principal</span>
+                  </span>
+                </label>
+                <label class="pack-option">
+                  <input type="radio" name="pack" value="Pack Dúo (2 CascoQR)" />
+                  <span class="pack-box">
+                    <strong>Pack Dúo (2 piezas)</strong>
+                    <span>Piloto y acompañante o 2 cascos</span>
+                  </span>
+                </label>
+                <label class="pack-option">
+                  <input type="radio" name="pack" value="Pack Moto Club / Flotilla (10+)" />
+                  <span class="pack-box">
+                    <strong>Moto Club / Flotilla</strong>
+                    <span>Desde 10 cascos con tu logo</span>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+
+            <div class="form-row">
+              <div class="field-group">
+                <label for="orderName">Tu nombre</label>
+                <input
+                  id="orderName"
+                  name="name"
+                  type="text"
+                  maxlength="80"
+                  placeholder="Ej. Carlos Mendoza"
+                  required
+                />
+              </div>
+
+              <div class="field-group">
+                <label for="orderCity">Ciudad / Estado</label>
+                <input
+                  id="orderCity"
+                  name="city"
+                  type="text"
+                  maxlength="80"
+                  placeholder="Ej. Guadalajara, Jal."
+                />
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label for="orderNotes">Detalle rápido (opcional)</label>
+              <input
+                id="orderNotes"
+                name="notes"
+                type="text"
+                maxlength="140"
+                placeholder="Ej. Casco negro mate, diseño naranja SOS"
+              />
+            </div>
+
+            <div class="message-preview" aria-live="polite">
+              <span class="preview-label">Mensaje que se abrirá en WhatsApp:</span>
+              <p id="waPreviewText"></p>
+            </div>
+
+            <p class="form-error" id="orderError" role="alert" hidden></p>
+
+            <button type="submit" class="btn btn-wa-solid btn-lg btn-block">
+              <svg class="icon-wa" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M12.05 2a9.93 9.93 0 0 0-8.48 15.11L2 22l5.02-1.32A9.93 9.93 0 1 0 12.05 2Zm0 18.18a8.24 8.24 0 0 1-4.2-1.15l-.3-.18-2.98.78.8-2.9-.2-.31a8.25 8.25 0 1 1 6.88 3.76Z"
+                />
+                <path
+                  d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.16-.17.2-.35.22-.64.07-.3-.15-1.26-.46-2.39-1.48-.88-.79-1.48-1.76-1.65-2.06-.17-.3-.02-.46.13-.6.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.21 3.07c.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.69.62.71.23 1.36.2 1.87.12.57-.08 1.76-.72 2.01-1.41.25-.7.25-1.29.17-1.41-.07-.12-.27-.2-.57-.35Z"
+                />
+              </svg>
+              <span>Continuar en WhatsApp con el admin</span>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section class="faq-section" id="preguntas">
+        <div class="container faq-container">
+          <div class="section-intro">
+            <p class="section-eyebrow">Dudas frecuentes</p>
+            <h2 class="section-title">Todo claro antes de rodar</h2>
+          </div>
+
+          <div class="faq-list">
+            <div class="faq-item">
+              <button type="button" class="faq-trigger" aria-expanded="true">
+                <span>¿Debo pagar alguna mensualidad para que el QR siga activo?</span>
+                <span class="faq-icon" aria-hidden="true">−</span>
+              </button>
+              <div class="faq-panel">
+                <p>
+                  No. Pagas una sola vez por tu etiqueta CascoQR y tu ficha médica
+                  digital queda activa sin rentas mensuales ni renovaciones sorpresa.
+                </p>
+              </div>
+            </div>
+
+            <div class="faq-item">
+              <button type="button" class="faq-trigger" aria-expanded="false">
+                <span>¿Quien me ayude necesita descargar una aplicación?</span>
+                <span class="faq-icon" aria-hidden="true">+</span>
+              </button>
+              <div class="faq-panel" hidden>
+                <p>
+                  No. Basta con apuntar la cámara normal de cualquier iPhone o
+                  Android hacia el código del casco. Se abre directo en el
+                  navegador con botones grandes para llamar o enviar la ubicación
+                  por WhatsApp.
+                </p>
+              </div>
+            </div>
+
+            <div class="faq-item">
+              <button type="button" class="faq-trigger" aria-expanded="false">
+                <span>¿Qué pasa si cambio mis contactos, alergias o teléfono?</span>
+                <span class="faq-icon" aria-hidden="true">+</span>
+              </button>
+              <div class="faq-panel" hidden>
+                <p>
+                  Escríbenos por WhatsApp y actualizamos tu ficha al momento. No
+                  tienes que despegar ni volver a comprar otra calcomanía.
+                </p>
+              </div>
+            </div>
+
+            <div class="faq-item">
+              <button type="button" class="faq-trigger" aria-expanded="false">
+                <span>¿Dónde conviene pegar la etiqueta en el casco?</span>
+                <span class="faq-icon" aria-hidden="true">+</span>
+              </button>
+              <div class="faq-panel" hidden>
+                <p>
+                  Recomendamos la parte posterior baja o un costado liso del casco,
+                  limpiando primero la zona con alcohol para lograr máxima fijación
+                  desde el primer minuto.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <div class="footer-brand">
+          <a href="#inicio" class="brand-wordmark footer-logo">CascoQR</a>
+          <p>Identificación médica QR para motociclistas.</p>
+        </div>
+
+        <nav class="footer-links" aria-label="Enlaces del pie">
+          <a href="#como-funciona">Cómo funciona</a>
+          <a href="#ficha-interactiva">Ficha médica</a>
+          <a href="#resistencia">Resistencia</a>
+          <a href="#pedir">Pedir por WhatsApp</a>
+        </nav>
+
+        <p class="footer-copy">
+          © <span id="footerYear">2026</span> CascoQR · Atención directa por WhatsApp
+        </p>
+      </div>
+    </footer>
+
+    <!-- Compact Floating WhatsApp Button -->
+    <a
+      href="#pedir"
+      class="wa-float"
+      id="waFloatBtn"
+      aria-label="Contactar al administrador por WhatsApp"
+      title="Pedir CascoQR por WhatsApp"
+    >
+      <svg class="icon-wa-lg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path
+          fill-rule="evenodd"
+          clip-rule="evenodd"
+          d="M12.05 2a9.93 9.93 0 0 0-8.48 15.11L2 22l5.02-1.32A9.93 9.93 0 1 0 12.05 2Zm0 18.18a8.24 8.24 0 0 1-4.2-1.15l-.3-.18-2.98.78.8-2.9-.2-.31a8.25 8.25 0 1 1 6.88 3.76Z"
+        />
+        <path
+          d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.16-.17.2-.35.22-.64.07-.3-.15-1.26-.46-2.39-1.48-.88-.79-1.48-1.76-1.65-2.06-.17-.3-.02-.46.13-.6.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.21 3.07c.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.69.62.71.23 1.36.2 1.87.12.57-.08 1.76-.72 2.01-1.41.25-.7.25-1.29.17-1.41-.07-.12-.27-.2-.57-.35Z"
+        />
+      </svg>
+    </a>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

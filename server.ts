@@ -39,6 +39,13 @@ async function startServer() {
       process.cwd() === path.dirname(__dirname) ? distDir : fallbackDistDir;
 
     app.use(express.static(staticDir, { index: false }));
+    app.get(['/landing', '/landing/'], (req, res) => {
+      if (req.path === '/landing') {
+        res.redirect(301, '/landing/');
+        return;
+      }
+      res.sendFile(path.join(staticDir, 'landing', 'index.html'));
+    });
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api/')) {
         next();
@@ -47,6 +54,13 @@ async function startServer() {
       res.sendFile(path.join(staticDir, 'index.html'));
     });
   } else {
+    app.get(['/landing', '/landing/'], (req, res) => {
+      if (req.path === '/landing') {
+        res.redirect(302, '/landing/');
+        return;
+      }
+      res.sendFile(path.resolve(__dirname, 'public', 'landing', 'index.html'));
+    });
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
