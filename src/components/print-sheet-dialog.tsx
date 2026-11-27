@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Check,
   ChevronDown,
   ChevronUp,
   Circle,
@@ -10,6 +11,8 @@ import {
   Printer,
   Smartphone,
   Square,
+  User,
+  Users,
 } from 'lucide-react';
 import { Button } from '@/src/components/ui/button';
 import {
@@ -20,6 +23,13 @@ import {
   DialogTitle,
 } from '@/src/components/ui/dialog';
 import { Input } from '@/src/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/src/components/ui/select';
 import { apiClient, ApiError, type OwnerSummary } from '@/src/lib/api-client';
 import {
   computeExactSheetCapacity,
@@ -31,7 +41,8 @@ import {
 
 interface PrintSheetDialogProps {
   open: boolean;
-  selectedOwners: OwnerSummary[];
+  availableOwners: OwnerSummary[];
+  initialSelectedIds: string[];
   onClose: () => void;
   onGenerated: (message: string) => void;
 }
@@ -67,11 +78,14 @@ function slugifyName(name: string): string {
 
 export function PrintSheetDialog({
   open,
-  selectedOwners,
+  availableOwners,
+  initialSelectedIds,
   onClose,
   onGenerated,
 }: PrintSheetDialogProps) {
-  const count = selectedOwners.length;
+  const [selectionScope, setSelectionScope] = useState<'one' | 'many'>('one');
+  const [singleOwnerId, setSingleOwnerId] = useState<string>('');
+  const [multiOwnerIds, setMultiOwnerIds] = useState<string[]>([]);
 
   const [printMode, setPrintMode] = useState<'single' | 'sheet'>('single');
   const [sheetPaper, setSheetPaper] = useState<SheetPaperSize>('letter');
@@ -92,18 +106,42 @@ export function PrintSheetDialog({
     setShowAdvanced(false);
     setSizeMode('exact');
     setCutGuideShape('circle');
-    if (selectedOwners.length <= 1) {
-      setPrintMode('single');
-      setFormat('png');
-      setCutGuides(false);
-    } else {
+
+    const availableIdSet = new Set(availableOwners.map((o) => o.id));
+    const validInitial = initialSelectedIds.filter((id) => availableIdSet.has(id));
+    const firstId = validInitial[0] ?? availableOwners[0]?.id ?? '';
+
+    setSingleOwnerId(firstId);
+    setMultiOwnerIds(
+      validInitial.length > 0
+        ? validInitial.slice(0, MAX_SHEET_LABELS)
+        : availableOwners.slice(0, MAX_SHEET_LABELS).map((o) => o.id),
+    );
+
+    if (validInitial.length >= 2) {
+      setSelectionScope('many');
       setPrintMode('sheet');
       setSheetPaper('letter');
       setFormat('pdf');
       setCutGuides(true);
+    } else {
+      setSelectionScope('one');
+      setPrintMode('single');
+      setFormat('png');
+      setCutGuides(false);
     }
-  }, [open, selectedOwners.length]);
+  }, [open, availableOwners, initialSelectedIds]);
 
+  const activeOwners = useMemo(() => {
+    if (selectionScope === 'one') {
+      const picked = availableOwners.find((o) => o.id === singleOwnerId);
+      return picked ? [picked] : [];
+    }
+    const chosenSet = new Set(multiOwnerIds);
+    return availableOwners.filter((o) => chosenSet.has(o.id));
+  }, [selectionScope, singleOwnerId, multiOwnerIds, availableOwners]);
+
+  const count = activeOwners.length;
   const exceedsLimit = count > MAX_SHEET_LABELS;
   const safeExactCm = Number.isFinite(exactSizeCm)
     ? Math.min(12, Math.max(2, exactSizeCm))
@@ -128,6 +166,31 @@ export function PrintSheetDialog({
     sizeMode === 'exact'
       ? Array.from({ length: Math.min(4, exactCapacity.maxCols) }, (_, i) => i + 1)
       : [2, 3, 4];
+
+  const handleScopeSwitch = (nextScope: 'one' | 'many') => {
+    setSelectionScope(nextScope);
+    if (nextScope === 'one') {
+      if (!singleOwnerId && availableOwners[0]) {
+        setSingleOwnerId(availableOwners[0].id);
+      }
+      setPrintMode('single');
+      setFormat('png');
+      setCutGuides(false);
+    } else {
+      if (multiOwnerIds.length === 0) {
+        setMultiOwnerIds(availableOwners.slice(0, MAX_SHEET_LABELS).map((o) => o.id));
+      }
+      setPrintMode('sheet');
+      setFormat('pdf');
+      setCutGuides(true);
+    }
+  };
+
+  const toggleMultiOwner = (ownerId: string) => {
+    setMultiOwnerIds((prev) =>
+      prev.includes(ownerId) ? prev.filter((id) => id !== ownerId) : [...prev, ownerId],
+    );
+  };
 
   const handleModeSwitch = (next: 'single' | 'sheet') => {
     setPrintMode(next);
@@ -172,7 +235,7 @@ export function PrintSheetDialog({
 
       if (printMode === 'single') {
         if (format === 'png') {
-          for (const owner of selectedOwners) {
+          for (const owner of activeOwners) {
             const blob = await apiClient.generatePrintSheet({
               ownerIds: [owner.id],
               paperSize: 'single',
@@ -184,10 +247,7 @@ export function PrintSheetDialog({
               cutGuideShape,
               format: 'png',
             });
-            const fileName =
-              count === 1
-                ? `sticker-${slugifyName(owner.fullName)}-${sizeLabel}.png`
-                : `sticker-${slugifyName(owner.fullName)}-${sizeLabel}.png`;
+            const fileName = `sticker-${slugifyName(owner.fullName)}-${sizeLabel}.png`;
             triggerBlobDownload(blob, fileName);
           }
 
@@ -201,7 +261,7 @@ export function PrintSheetDialog({
         }
 
         const pdfBlob = await apiClient.generatePrintSheet({
-          ownerIds: selectedOwners.map((o) => o.id),
+          ownerIds: activeOwners.map((o) => o.id),
           paperSize: 'single',
           columns: 1,
           cutGuides,
@@ -214,7 +274,7 @@ export function PrintSheetDialog({
         triggerBlobDownload(
           pdfBlob,
           count === 1
-            ? `sticker-${slugifyName(selectedOwners[0].fullName)}-${sizeLabel}.pdf`
+            ? `sticker-${slugifyName(activeOwners[0].fullName)}-${sizeLabel}.pdf`
             : `stickers-${sizeLabel}.pdf`,
         );
         onGenerated(
@@ -225,7 +285,7 @@ export function PrintSheetDialog({
       }
 
       const blob = await apiClient.generatePrintSheet({
-        ownerIds: selectedOwners.map((o) => o.id),
+        ownerIds: activeOwners.map((o) => o.id),
         paperSize: sheetPaper,
         columns: effectiveCols,
         cutGuides,
@@ -265,11 +325,139 @@ export function PrintSheetDialog({
             <span>Imprimir etiquetas</span>
           </DialogTitle>
           <DialogDescription>
-            Elige si vas a imprimir en una mini impresora portátil o en una hoja tamaño Carta/Tabloide.
+            Escoge si quieres imprimir solo 1 propietario o varios a la vez, y elige el formato de salida.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 pt-1">
+          {/* 1. Cantidad / Selección de propietarios */}
+          <div className="space-y-2">
+            <span className="block text-xs font-semibold text-slate-700">
+              1. ¿Cuántas etiquetas vas a imprimir?
+            </span>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleScopeSwitch('one')}
+                className={`rounded-xl border px-3 py-2.5 text-left transition-colors cursor-pointer ${
+                  selectionScope === 'one'
+                    ? 'border-blue-600 bg-blue-50/70 text-slate-900 ring-1 ring-blue-600'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <p className="text-xs font-semibold flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                  <span>Solo 1 etiqueta</span>
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Elige un propietario
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleScopeSwitch('many')}
+                className={`rounded-xl border px-3 py-2.5 text-left transition-colors cursor-pointer ${
+                  selectionScope === 'many'
+                    ? 'border-blue-600 bg-blue-50/70 text-slate-900 ring-1 ring-blue-600'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <p className="text-xs font-semibold flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                  <span>Escoger varias</span>
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Hasta {MAX_SHEET_LABELS} a la vez
+                </p>
+              </button>
+            </div>
+
+            {selectionScope === 'one' ? (
+              <div className="space-y-1">
+                <Select value={singleOwnerId} onValueChange={setSingleOwnerId}>
+                  <SelectTrigger aria-label="Propietario a imprimir">
+                    <SelectValue placeholder="Selecciona un propietario" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableOwners.map((owner) => (
+                      <SelectItem key={owner.id} value={owner.id}>
+                        {owner.fullName}
+                        {owner.templateName ? ` · ${owner.templateName}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 space-y-2">
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <span className="text-[11px] font-medium text-slate-600 font-mono tabular-nums">
+                    {multiOwnerIds.length} de {availableOwners.length} seleccionadas
+                  </span>
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setMultiOwnerIds(
+                          availableOwners.slice(0, MAX_SHEET_LABELS).map((o) => o.id),
+                        )
+                      }
+                      className="font-semibold text-blue-600 hover:underline cursor-pointer"
+                    >
+                      Todas (máx. {MAX_SHEET_LABELS})
+                    </button>
+                    <span aria-hidden="true" className="text-slate-300">
+                      ·
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setMultiOwnerIds([])}
+                      className="font-medium text-slate-500 hover:text-slate-800 cursor-pointer"
+                    >
+                      Limpiar
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                  {availableOwners.map((owner) => {
+                    const checked = multiOwnerIds.includes(owner.id);
+                    return (
+                      <button
+                        key={owner.id}
+                        type="button"
+                        onClick={() => toggleMultiOwner(owner.id)}
+                        className={`w-full rounded-lg border px-2.5 py-1.5 text-left text-xs flex items-center justify-between gap-2 transition-colors cursor-pointer ${
+                          checked
+                            ? 'border-blue-600 bg-white text-slate-900'
+                            : 'border-slate-200 bg-white/70 text-slate-600 hover:bg-white'
+                        }`}
+                      >
+                        <div className="min-w-0 truncate">
+                          <span className="font-medium">{owner.fullName}</span>
+                          {owner.templateName && (
+                            <span className="text-slate-400"> · {owner.templateName}</span>
+                          )}
+                        </div>
+                        <span
+                          className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
+                            checked
+                              ? 'border-blue-600 bg-blue-600 text-white'
+                              : 'border-slate-300 bg-white'
+                          }`}
+                        >
+                          {checked && <Check className="h-3 w-3" />}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
           {exceedsLimit && (
             <div
               role="alert"
@@ -279,10 +467,10 @@ export function PrintSheetDialog({
             </div>
           )}
 
-          {/* 1. Tipo de impresora */}
+          {/* 2. Tipo de impresora */}
           <div className="space-y-1.5">
             <span className="block text-xs font-semibold text-slate-700">
-              1. ¿Dónde vas a imprimir?
+              2. ¿Dónde vas a imprimir?
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
@@ -323,12 +511,12 @@ export function PrintSheetDialog({
             </div>
           </div>
 
-          {/* 2. Medida física */}
+          {/* 3. Medida física */}
           {(printMode === 'single' || sizeMode === 'exact') && (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-slate-700">
-                  2. Tamaño del sticker
+                  3. Tamaño del sticker
                 </span>
                 <span className="text-xs font-mono font-semibold text-blue-700">
                   {safeExactCm.toFixed(1)} × {safeExactCm.toFixed(1)} cm
@@ -413,10 +601,10 @@ export function PrintSheetDialog({
             </div>
           )}
 
-          {/* 3. Formato */}
+          {/* 4. Formato */}
           <div className="space-y-1.5">
             <span className="block text-xs font-semibold text-slate-700">
-              {printMode === 'single' ? '3. Formato para tu mini impresora' : '3. Formato de descarga'}
+              {printMode === 'single' ? '4. Formato para tu mini impresora' : '4. Formato de descarga'}
             </span>
             <div className="grid grid-cols-2 gap-2">
               <button

@@ -1,5 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AdminLayout, type AdminModule } from '@/src/components/admin-layout';
+import {
+  AdminOnboardingTour,
+  hasSeenAdminTour,
+} from '@/src/components/admin-onboarding-tour';
 import { apiClient, type AdminUser, type AuthConfig } from '@/src/lib/api-client';
 import { LoginPage } from '@/src/modules/auth/login-page';
 import { CardThemeModule } from '@/src/modules/card-theme/card-theme-module';
@@ -49,6 +53,8 @@ export default function App() {
   const [editorOwnerId, setEditorOwnerId] = useState<string | null>(null);
   const [cardThemeOwnerId, setCardThemeOwnerId] = useState<string | null>(null);
   const [lookupToken, setLookupToken] = useState<string | null>(null);
+  const [tourOpen, setTourOpen] = useState(false);
+  const [tourHighlightedModule, setTourHighlightedModule] = useState<AdminModule | null>(null);
 
   const activeModule = navStack[navStack.length - 1] ?? 'owners';
 
@@ -121,6 +127,13 @@ export default function App() {
       cancelled = true;
     };
   }, [standalonePublicToken]);
+
+  useEffect(() => {
+    if (standalonePublicToken || checkingAuth || !admin) return;
+    if (!hasSeenAdminTour()) {
+      setTourOpen(true);
+    }
+  }, [standalonePublicToken, checkingAuth, admin]);
 
   const navigateToModule = useCallback((nextModule: AdminModule) => {
     const currentStack = navStackRef.current;
@@ -212,32 +225,43 @@ export default function App() {
     navStack.length > 1 ? navStack[navStack.length - 2] : activeModule !== 'owners' ? 'owners' : undefined;
 
   return (
-    <AdminLayout
-      activeModule={activeModule}
-      onSelectModule={navigateToModule}
-      canGoBack={canGoBack}
-      previousModuleLabel={previousModule ? MODULE_LABELS[previousModule] : undefined}
-      onGoBack={handleGoBack}
-      admin={admin}
-      onLogout={() => void handleLogout()}
-    >
-      {activeModule === 'owners' && (
-        <OwnersModule
-          onOpenEditorForOwner={handleOpenEditorForOwner}
-          onOpenPublicCardForToken={handleOpenPublicCardForToken}
-          onOpenCardThemeForOwner={handleOpenCardThemeForOwner}
-          onOpenTemplates={() => navigateToModule('templates')}
-        />
-      )}
-      {activeModule === 'templates' && <TemplatesModule />}
-      {activeModule === 'editor' && <LabelEditorModule initialOwnerId={editorOwnerId} />}
-      {activeModule === 'card-theme' && <CardThemeModule initialOwnerId={cardThemeOwnerId} />}
-      {activeModule === 'public' && (
-        <PublicLookupAdmin
-          initialToken={lookupToken}
-          onOpenStandalonePublic={handleNavigateStandalonePublic}
-        />
-      )}
-    </AdminLayout>
+    <>
+      <AdminLayout
+        activeModule={activeModule}
+        onSelectModule={navigateToModule}
+        canGoBack={canGoBack}
+        previousModuleLabel={previousModule ? MODULE_LABELS[previousModule] : undefined}
+        onGoBack={handleGoBack}
+        admin={admin}
+        highlightedModule={tourOpen ? tourHighlightedModule : null}
+        onLogout={() => void handleLogout()}
+      >
+        {activeModule === 'owners' && (
+          <OwnersModule
+            onOpenEditorForOwner={handleOpenEditorForOwner}
+            onOpenPublicCardForToken={handleOpenPublicCardForToken}
+            onOpenCardThemeForOwner={handleOpenCardThemeForOwner}
+            onOpenTemplates={() => navigateToModule('templates')}
+            onOpenTour={() => setTourOpen(true)}
+          />
+        )}
+        {activeModule === 'templates' && <TemplatesModule />}
+        {activeModule === 'editor' && <LabelEditorModule initialOwnerId={editorOwnerId} />}
+        {activeModule === 'card-theme' && <CardThemeModule initialOwnerId={cardThemeOwnerId} />}
+        {activeModule === 'public' && (
+          <PublicLookupAdmin
+            initialToken={lookupToken}
+            onOpenStandalonePublic={handleNavigateStandalonePublic}
+          />
+        )}
+      </AdminLayout>
+
+      <AdminOnboardingTour
+        open={tourOpen}
+        onClose={() => setTourOpen(false)}
+        onHighlightModule={setTourHighlightedModule}
+        onNavigateToModule={navigateToModule}
+      />
+    </>
   );
 }

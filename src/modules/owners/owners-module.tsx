@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle,
   Ban,
+  BookOpen,
   Check,
   CheckCircle2,
   Download,
@@ -44,6 +45,7 @@ interface OwnersModuleProps {
   onOpenPublicCardForToken: (token: string) => void;
   onOpenCardThemeForOwner: (ownerId: string) => void;
   onOpenTemplates: () => void;
+  onOpenTour?: () => void;
 }
 
 export function OwnersModule({
@@ -51,6 +53,7 @@ export function OwnersModule({
   onOpenPublicCardForToken,
   onOpenCardThemeForOwner,
   onOpenTemplates,
+  onOpenTour,
 }: OwnersModuleProps) {
   const [mode, setMode] = useState<'list' | 'create'>('list');
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
@@ -215,7 +218,6 @@ export function OwnersModule({
   const eligibleOwners = owners.filter(
     (o) => o.status && o.hasLabel && Boolean(o.publicToken),
   );
-  const selectedOwners = eligibleOwners.filter((o) => selectedIds.includes(o.id));
   const allEligibleSelected =
     eligibleOwners.length > 0 &&
     eligibleOwners.every((o) => selectedIds.includes(o.id));
@@ -266,16 +268,11 @@ export function OwnersModule({
             type="button"
             variant="outline"
             disabled={eligibleOwners.length === 0}
-            onClick={() => {
-              if (selectedIds.length === 0) {
-                setSelectedIds(eligibleOwners.slice(0, 20).map((o) => o.id));
-              }
-              setShowPrintSheetDialog(true);
-            }}
+            onClick={() => setShowPrintSheetDialog(true)}
             title={
               eligibleOwners.length === 0
                 ? 'Necesitas al menos un propietario activo con etiqueta configurada'
-                : 'Descarga stickers listos para mini impresora o en hoja Carta / Tabloide'
+                : 'Elige 1 o varios stickers listos para mini impresora o en hoja Carta / Tabloide'
             }
           >
             <Printer className="h-4 w-4" />
@@ -395,6 +392,27 @@ export function OwnersModule({
           ))}
         </div>
       ) : null}
+
+      {onOpenTour && (
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 text-sm text-slate-600">
+            <BookOpen className="h-4 w-4 text-blue-600 shrink-0" />
+            <span>
+              ¿Necesitas repasar cómo usar propietarios, plantillas, editor, impresión o diseño?
+            </span>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onOpenTour}
+            className="self-start sm:self-auto whitespace-nowrap shrink-0"
+          >
+            <BookOpen className="h-4 w-4 text-blue-600" />
+            <span>Repetir guía de uso</span>
+          </Button>
+        </div>
+      )}
 
       {/* Search & Status Filter Bar */}
       <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -752,7 +770,8 @@ export function OwnersModule({
 
       <PrintSheetDialog
         open={showPrintSheetDialog}
-        selectedOwners={selectedOwners}
+        availableOwners={eligibleOwners}
+        initialSelectedIds={selectedIds}
         onClose={() => setShowPrintSheetDialog(false)}
         onGenerated={(msg) => {
           setFeedback(msg);

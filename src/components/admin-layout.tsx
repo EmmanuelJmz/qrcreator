@@ -24,6 +24,7 @@ interface AdminLayoutProps {
   onGoBack?: () => void;
   admin: AdminUser;
   onLogout: () => void;
+  highlightedModule?: AdminModule | null;
   children: React.ReactNode;
 }
 
@@ -47,6 +48,7 @@ export function AdminLayout({
   onGoBack,
   admin,
   onLogout,
+  highlightedModule = null,
   children,
 }: AdminLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
@@ -76,18 +78,25 @@ export function AdminLayout({
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = activeModule === item.id;
+            const isTourSpotlight = highlightedModule === item.id;
             return (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => handleNavClick(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer ${
-                  isActive
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  isTourSpotlight
+                    ? 'relative z-[60] bg-white text-blue-700 ring-2 ring-blue-500 shadow-lg'
+                    : isActive
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
+                <Icon
+                  className={`h-4 w-4 shrink-0 ${
+                    isActive || isTourSpotlight ? 'text-blue-600' : 'text-slate-400'
+                  }`}
+                />
                 <span className="truncate">{item.label}</span>
               </button>
             );
