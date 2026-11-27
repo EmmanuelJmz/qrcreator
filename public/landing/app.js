@@ -4,6 +4,7 @@ const ADMIN_WHATSAPP_NUMBER = '5213300000000';
 
 const DEMO_PROFILES = {
   urbano: {
+    dark: false,
     initials: 'CM',
     name: 'Carlos Mendoza',
     city: 'Guadalajara, Jal.',
@@ -16,12 +17,13 @@ const DEMO_PROFILES = {
     phone: '+52 33 1987 6543',
   },
   ruta: {
+    dark: true,
     initials: 'AL',
     name: 'Andrea López',
     city: 'Querétaro, Qro.',
     blood: 'A-',
     age: '28 años',
-    alerts: 'Sin alergias conocidas · Usa lentes de contacto',
+    alerts: 'Usa lentes de contacto · Asma leve',
     insurance: 'Gastos Médicos GNP · Póliza 4820',
     rel: 'Contacto 1 · Pareja',
     contactName: 'Diego Torres',
@@ -29,14 +31,16 @@ const DEMO_PROFILES = {
   },
 };
 
-function buildWhatsAppUrl(message) {
-  const digits = String(ADMIN_WHATSAPP_NUMBER).replace(/\D/g, '');
+function buildWhatsAppUrl(message, customDigits) {
+  const rawDigits =
+    customDigits === undefined ? ADMIN_WHATSAPP_NUMBER : customDigits;
+  const digits = String(rawDigits).replace(/\D/g, '');
   const text = encodeURIComponent(message);
   return digits ? `https://wa.me/${digits}?text=${text}` : `https://wa.me/?text=${text}`;
 }
 
-function launchWhatsApp(message) {
-  const url = buildWhatsAppUrl(message);
+function launchWhatsApp(message, customDigits) {
+  const url = buildWhatsAppUrl(message, customDigits);
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.target = '_blank';
@@ -78,7 +82,10 @@ function launchWhatsApp(message) {
 (function initCardSimulator() {
   let activeKey = 'urbano';
   const tabs = document.querySelectorAll('[data-profile]');
-  const toast = document.getElementById('demoToast');
+  const screen = document.getElementById('demoPhoneScreen');
+  const callBtn = document.getElementById('demoCallBtn');
+  const simWaBtn = document.getElementById('demoSimWaBtn');
+  const simWaLabel = document.getElementById('demoWaLabel');
 
   const els = {
     avatar: document.getElementById('demoAvatar'),
@@ -97,6 +104,9 @@ function launchWhatsApp(message) {
     const p = DEMO_PROFILES[key];
     if (!p) return;
     activeKey = key;
+    if (screen) {
+      screen.classList.toggle('is-dark', Boolean(p.dark));
+    }
     els.avatar.textContent = p.initials;
     els.name.textContent = p.name;
     els.city.textContent = p.city;
@@ -107,8 +117,9 @@ function launchWhatsApp(message) {
     els.rel.textContent = p.rel;
     els.contactName.textContent = p.contactName;
     els.phone.textContent = p.phone;
-
-    if (toast) toast.hidden = true;
+    if (callBtn) {
+      callBtn.setAttribute('href', `tel:${p.phone.replace(/\s+/g, '')}`);
+    }
   }
 
   tabs.forEach((tab) => {
@@ -123,21 +134,49 @@ function launchWhatsApp(message) {
     });
   });
 
-  const simCallBtn = document.getElementById('demoCallBtn');
-  if (simCallBtn && toast) {
-    simCallBtn.addEventListener('click', () => {
-      const p = DEMO_PROFILES[activeKey];
-      toast.hidden = false;
-      toast.textContent = `En un teléfono real, este botón inicia la llamada directa a ${p.contactName} (${p.phone}).`;
-    });
-  }
-
-  const simWaBtn = document.getElementById('demoSimWaBtn');
-  if (simWaBtn && toast) {
+  if (simWaBtn) {
+    let readyMessage = '';
     simWaBtn.addEventListener('click', () => {
+      if (readyMessage) {
+        launchWhatsApp(readyMessage, '');
+        return;
+      }
+
       const p = DEMO_PROFILES[activeKey];
-      toast.hidden = false;
-      toast.textContent = `Vista previa del WhatsApp que se enviaría a ${p.contactName}: "EMERGENCIA CASCOQR: Escaneé el casco de ${p.name}. Ubicación actual: https://maps.google.com/?q=20.676667,-103.347500"`;
+      const baseText = `EMERGENCIA CASCOQR (Prueba): Escaneé el casco de ${p.name} (${p.blood}).`;
+      const openWithCoords = (coordsText) => {
+        readyMessage = `${baseText} ${coordsText}`;
+        if (simWaLabel) simWaLabel.textContent = 'Abrir WhatsApp con ubicación';
+        simWaBtn.disabled = false;
+        launchWhatsApp(readyMessage, '');
+      };
+
+      if (!navigator.geolocation) {
+        openWithCoords(`Ubicación aproximada: ${p.city}`);
+        return;
+      }
+
+      simWaBtn.disabled = true;
+      if (simWaLabel) simWaLabel.textContent = 'Obteniendo GPS real...';
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude.toFixed(6);
+          const lng = pos.coords.longitude.toFixed(6);
+          openWithCoords(`Esta es la ubicación actual: https://maps.google.com/?q=${lat},${lng}`);
+        },
+        () => {
+          openWithCoords(`Ubicación de muestra: https://maps.google.com/?q=20.676667,-103.347500`);
+        },
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 },
+      );
+    });
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        readyMessage = '';
+        if (simWaLabel) simWaLabel.textContent = 'Probar envío real por WhatsApp';
+      });
     });
   }
 })();
