@@ -267,6 +267,7 @@ export function OwnersModule({
           <Button
             type="button"
             variant="outline"
+            data-tour="print-btn"
             disabled={eligibleOwners.length === 0}
             onClick={() => setShowPrintSheetDialog(true)}
             title={
@@ -283,7 +284,7 @@ export function OwnersModule({
             </span>
           </Button>
 
-          <Button onClick={() => setMode('create')}>
+          <Button data-tour="new-owner-btn" onClick={() => setMode('create')}>
             <Plus className="h-4 w-4" />
             <span>Nuevo propietario</span>
           </Button>
@@ -292,7 +293,7 @@ export function OwnersModule({
 
       {/* Resumen operativo */}
       {stats ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div data-tour="stats-grid" className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
           <button
             type="button"
             onClick={() => setStatusFilter('all')}
@@ -405,6 +406,7 @@ export function OwnersModule({
             type="button"
             variant="outline"
             size="sm"
+            data-tour="replay-tour-btn"
             onClick={onOpenTour}
             className="self-start sm:self-auto whitespace-nowrap shrink-0"
           >
@@ -415,7 +417,10 @@ export function OwnersModule({
       )}
 
       {/* Search & Status Filter Bar */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div
+        data-tour="search-bar"
+        className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+      >
         <div className="relative flex-1 max-w-md">
           <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <Input

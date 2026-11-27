@@ -83,13 +83,12 @@ export function AdminLayout({
               <button
                 key={item.id}
                 type="button"
+                data-tour={`nav-${item.id}`}
                 onClick={() => handleNavClick(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer ${
-                  isTourSpotlight
-                    ? 'relative z-[60] bg-white text-blue-700 ring-2 ring-blue-500 shadow-lg'
-                    : isActive
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  isTourSpotlight || isActive
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
                 <Icon
@@ -181,6 +180,7 @@ export function AdminLayout({
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <button
               type="button"
+              data-tour="mobile-menu-btn"
               aria-label="Abrir navegación"
               onClick={() => setMobileMenuOpen(true)}
               className="lg:hidden h-10 w-10 flex items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 shrink-0 cursor-pointer"
